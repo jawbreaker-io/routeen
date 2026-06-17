@@ -479,7 +479,7 @@ export default function Sidebar({
   const handleCopySummary = () => {
     if (activeDaySchedule.length === 0) return;
 
-    let text = `CommuteWise Route - ${activeDay.toUpperCase()}\n`;
+    let text = `Routeen Route - ${activeDay.toUpperCase()}\n`;
     text += `Start Time: ${startTime || '08:00'}\n`;
     if (activeRouteDetails) {
       text += `Total Distance: ${activeRouteDetails.distance.toFixed(1)} miles\n`;
@@ -689,7 +689,7 @@ export default function Sidebar({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
           <div className="sidebar-logo">
             <Compass size={22} />
-            <h1>CommuteWise</h1>
+            <h1>Routeen</h1>
           </div>
           <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
             Daily Commute Planner
