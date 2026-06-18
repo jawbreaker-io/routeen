@@ -43,6 +43,9 @@
   --third-place: #8b5cf6; /* Violet */
   --third-place-glow: rgba(139, 92, 246, 0.12);
 
+  --eatery: #f43f5e; /* Rose */
+  --eatery-glow: rgba(244, 63, 94, 0.12);
+
   --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
   
@@ -102,6 +105,9 @@
 
   --third-place: #a78bfa;
   --third-place-glow: rgba(167, 139, 250, 0.25);
+
+  --eatery: #fb7185;
+  --eatery-glow: rgba(251, 113, 133, 0.25);
   
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
@@ -271,6 +277,11 @@ p {
 .custom-marker.third_place {
   background: var(--third-place);
   --marker-shadow: 0 0 14px var(--third-place);
+}
+
+.custom-marker.eatery {
+  background: var(--eatery);
+  --marker-shadow: 0 0 14px var(--eatery);
 }
 
 .custom-marker.other {
@@ -646,6 +657,11 @@ p {
   color: var(--third-place);
 }
 
+.place-icon-badge.eatery {
+  background: var(--eatery-glow);
+  color: var(--eatery);
+}
+
 .place-icon-badge.other {
   background: var(--primary-glow);
   color: var(--primary);
@@ -705,6 +721,12 @@ p {
   background: var(--third-place-glow);
   color: var(--third-place);
   border: 1px solid rgba(139, 92, 246, 0.15);
+}
+
+.place-special-tag.eatery {
+  background: var(--eatery-glow);
+  color: var(--eatery);
+  border: 1px solid rgba(244, 63, 94, 0.15);
 }
 
 .place-address {
@@ -868,6 +890,7 @@ p {
 .stop-type-dot.activities { background: var(--activities); }
 .stop-type-dot.shopping { background: var(--shopping); }
 .stop-type-dot.third_place { background: var(--third-place); }
+.stop-type-dot.eatery { background: var(--eatery); }
 .stop-type-dot.other { background: var(--primary); }
 
 .stop-actions {

@@ -223,7 +223,7 @@ export default function App() {
   };
 
   const handleAddStopToActiveDay = (place) => {
-    const defaultStay = place.type === 'office' ? 480 : (place.type === 'home' || place.type === 'exercise' || place.type === 'activities' || place.type === 'third_place') ? 60 : 30;
+    const defaultStay = place.type === 'office' ? 480 : (place.type === 'home' || place.type === 'exercise' || place.type === 'activities' || place.type === 'third_place' || place.type === 'eatery') ? 60 : 30;
     
     const newStop = {
       id: 'stop-' + Math.random().toString(36).substring(2, 9),

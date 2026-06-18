@@ -28,6 +28,7 @@ import {
   Dumbbell,
   ShoppingBag,
   Coffee,
+  Utensils,
 } from 'lucide-react';
 import { geocodeAddress } from '../services/mapService';
 // Helper to format minutes to standard AM/PM time
@@ -855,6 +856,7 @@ export default function Sidebar({
                 <option value="activities">✨ Morgan's Activities</option>
                 <option value="shopping">🛍️ Shopping</option>
                 <option value="third_place">☕ Third Place</option>
+                <option value="eatery">🍽️ Eatery</option>
               </select>
             </div>
 
@@ -922,6 +924,8 @@ export default function Sidebar({
                           <ShoppingBag size={16} />
                         ) : place.type === 'third_place' ? (
                           <Coffee size={16} />
+                        ) : place.type === 'eatery' ? (
+                          <Utensils size={16} />
                         ) : (
                           <MapPin size={16} />
                         )}
@@ -935,6 +939,7 @@ export default function Sidebar({
                           {place.type === 'activities' && <span className="place-special-tag activities">Morgan's Activities</span>}
                           {place.type === 'shopping' && <span className="place-special-tag shopping">Shopping</span>}
                           {place.type === 'third_place' && <span className="place-special-tag third_place">Third Place</span>}
+                          {place.type === 'eatery' && <span className="place-special-tag eatery">Eatery</span>}
                         </div>
                         <div className="place-address" title={place.address}>
                           {place.address}
@@ -1141,6 +1146,7 @@ export default function Sidebar({
                           : place.type === 'activities' ? "Morgan's Activities"
                           : place.type === 'shopping' ? 'Shopping'
                           : place.type === 'third_place' ? 'Third Place'
+                          : place.type === 'eatery' ? 'Eatery'
                           : place.address.split(',')[0]
                         })
                       </option>

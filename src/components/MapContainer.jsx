@@ -105,6 +105,7 @@ export default function MapContainer({
                 <option value="activities">Morgan's Activities</option>
                 <option value="shopping">Shopping</option>
                 <option value="third_place">Third Place</option>
+                <option value="eatery">Eatery</option>
               </select>
             </div>
             
@@ -259,6 +260,9 @@ export default function MapContainer({
     } else if (type === 'third_place') {
       iconClass += ' third_place';
       innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="14" y1="2" y2="2"/></svg>`;
+    } else if (type === 'eatery') {
+      iconClass += ' eatery';
+      innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>`;
     } else {
       iconClass += ' other';
       innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`;
@@ -297,6 +301,7 @@ export default function MapContainer({
         activities: "Morgan's Activities",
         shopping: 'Shopping',
         third_place: 'Third Place',
+        eatery: 'Eatery',
         other: 'Saved Place'
       };
       const typeLabel = typeLabels[place.type] || 'Saved Place';
