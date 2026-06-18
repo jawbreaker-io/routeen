@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import MapContainer from './components/MapContainer';
+import DashboardModal from './components/DashboardModal';
 import { getRoute } from './services/mapService';
 
 const SEED_PLACES = [
@@ -137,14 +138,18 @@ export default function App() {
   // Cache for routing coordinates
   const routeCacheRef = useRef({});
 
-  // Workday commute stats (Monday - Friday)
+  // Workday commute stats (Monday - Sunday)
   const [weeklyStats, setWeeklyStats] = useState({
     monday: { distance: 0, duration: 0 },
     tuesday: { distance: 0, duration: 0 },
     wednesday: { distance: 0, duration: 0 },
     thursday: { distance: 0, duration: 0 },
-    friday: { distance: 0, duration: 0 }
+    friday: { distance: 0, duration: 0 },
+    saturday: { distance: 0, duration: 0 },
+    sunday: { distance: 0, duration: 0 }
   });
+
+  const [showDashboard, setShowDashboard] = useState(false);
 
   // Toast System
   const [toast, setToast] = useState({ message: '', type: 'info', visible: false });
@@ -616,7 +621,7 @@ export default function App() {
     let isSubscribed = true;
     
     const calculateAllStats = async () => {
-      const workdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+      const workdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
       const statsUpdates = {};
 
       const promises = workdays.map(async (day) => {
@@ -742,6 +747,7 @@ export default function App() {
         onExportConfig={handleExportConfig}
         onImportConfig={handleImportConfig}
         onShowToast={showToast}
+        onOpenDashboard={() => setShowDashboard(true)}
       />
 
       {/* Map Content Viewport */}
@@ -809,6 +815,15 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* Analytics Insights Dashboard Modal */}
+      <DashboardModal
+        isOpen={showDashboard}
+        onClose={() => setShowDashboard(false)}
+        places={places}
+        schedules={schedules}
+        weeklyStats={weeklyStats}
+      />
     </div>
   );
 }

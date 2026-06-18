@@ -29,6 +29,7 @@ import {
   ShoppingBag,
   Coffee,
   Utensils,
+  BarChart3,
 } from 'lucide-react';
 import { geocodeAddress } from '../services/mapService';
 // Helper to format minutes to standard AM/PM time
@@ -294,6 +295,7 @@ export default function Sidebar({
   onExportConfig,
   onImportConfig,
   onShowToast,
+  onOpenDashboard,
 }) {
   // Add/Edit Place Form State
   const [placeName, setPlaceName] = useState('');
@@ -700,13 +702,24 @@ export default function Sidebar({
           </p>
         </div>
         
-        <button
-          onClick={onToggleTheme}
-          className="theme-toggle-btn"
-          title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
-        >
-          {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-        </button>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <button
+            onClick={onOpenDashboard}
+            className="theme-toggle-btn"
+            title="Open Analytics & Weekly Summary"
+            style={{ color: 'var(--primary)' }}
+          >
+            <BarChart3 size={15} />
+          </button>
+          
+          <button
+            onClick={onToggleTheme}
+            className="theme-toggle-btn"
+            title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+          >
+            {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+          </button>
+        </div>
       </div>
 
       <div className="sidebar-scrollable">
