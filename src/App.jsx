@@ -6,8 +6,8 @@ import { getRoute } from './services/mapService';
 const SEED_PLACES = [
   { id: 'p1', name: 'Home', type: 'home', address: '100 Pine St, San Francisco, CA 94111', lat: 37.7925, lng: -122.3999 },
   { id: 'p2', name: 'Salesforce Office', type: 'office', address: '415 Mission St, San Francisco, CA 94105', lat: 37.7897, lng: -122.3972 },
-  { id: 'p3', name: 'City Gym', type: 'other', address: '201 Berry St, San Francisco, CA 94158', lat: 37.7765, lng: -122.3934 },
-  { id: 'p4', name: 'Whole Foods Market', type: 'other', address: '2300 16th St, San Francisco, CA 94103', lat: 37.7663, lng: -122.4093 }
+  { id: 'p3', name: 'City Gym', type: 'exercise', address: '201 Berry St, San Francisco, CA 94158', lat: 37.7765, lng: -122.3934 },
+  { id: 'p4', name: 'Whole Foods Market', type: 'shopping', address: '2300 16th St, San Francisco, CA 94103', lat: 37.7663, lng: -122.4093 }
 ];
 
 const SEED_SCHEDULES = {
@@ -85,7 +85,30 @@ export default function App() {
   // Load State from LocalStorage
   const [places, setPlaces] = useState(() => {
     const saved = localStorage.getItem('cw_places');
-    return saved ? JSON.parse(saved) : SEED_PLACES;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        let migrated = false;
+        const updated = parsed.map((p) => {
+          if (p.name === 'City Gym' && p.type === 'other') {
+            migrated = true;
+            return { ...p, type: 'exercise' };
+          }
+          if (p.name === 'Whole Foods Market' && p.type === 'other') {
+            migrated = true;
+            return { ...p, type: 'shopping' };
+          }
+          return p;
+        });
+        if (migrated) {
+          localStorage.setItem('cw_places', JSON.stringify(updated));
+        }
+        return updated;
+      } catch {
+        return SEED_PLACES;
+      }
+    }
+    return SEED_PLACES;
   });
 
   const [schedules, setSchedules] = useState(() => {
@@ -200,7 +223,7 @@ export default function App() {
   };
 
   const handleAddStopToActiveDay = (place) => {
-    const defaultStay = place.type === 'office' ? 480 : place.type === 'home' ? 60 : 30;
+    const defaultStay = place.type === 'office' ? 480 : (place.type === 'home' || place.type === 'exercise' || place.type === 'activities' || place.type === 'third_place') ? 60 : 30;
     
     const newStop = {
       id: 'stop-' + Math.random().toString(36).substring(2, 9),

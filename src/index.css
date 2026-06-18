@@ -31,6 +31,18 @@
   --info: #0284c7; /* Sky */
   --info-glow: rgba(2, 132, 199, 0.12);
 
+  --exercise: #06b6d4; /* Teal */
+  --exercise-glow: rgba(6, 182, 212, 0.12);
+
+  --activities: #ec4899; /* Pink */
+  --activities-glow: rgba(236, 72, 153, 0.12);
+
+  --shopping: #f97316; /* Orange */
+  --shopping-glow: rgba(249, 115, 22, 0.12);
+
+  --third-place: #8b5cf6; /* Violet */
+  --third-place-glow: rgba(139, 92, 246, 0.12);
+
   --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
   
@@ -78,6 +90,18 @@
   
   --info: #0ea5e9;
   --info-glow: rgba(14, 165, 233, 0.25);
+
+  --exercise: #06b6d4;
+  --exercise-glow: rgba(6, 182, 212, 0.25);
+
+  --activities: #f472b6;
+  --activities-glow: rgba(244, 114, 182, 0.25);
+
+  --shopping: #fb923c;
+  --shopping-glow: rgba(251, 146, 60, 0.25);
+
+  --third-place: #a78bfa;
+  --third-place-glow: rgba(167, 139, 250, 0.25);
   
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
@@ -227,6 +251,26 @@ p {
 .custom-marker.office {
   background: var(--warning);
   --marker-shadow: 0 0 14px var(--warning);
+}
+
+.custom-marker.exercise {
+  background: var(--exercise);
+  --marker-shadow: 0 0 14px var(--exercise);
+}
+
+.custom-marker.activities {
+  background: var(--activities);
+  --marker-shadow: 0 0 14px var(--activities);
+}
+
+.custom-marker.shopping {
+  background: var(--shopping);
+  --marker-shadow: 0 0 14px var(--shopping);
+}
+
+.custom-marker.third_place {
+  background: var(--third-place);
+  --marker-shadow: 0 0 14px var(--third-place);
 }
 
 .custom-marker.other {
@@ -582,6 +626,26 @@ p {
   color: var(--warning);
 }
 
+.place-icon-badge.exercise {
+  background: var(--exercise-glow);
+  color: var(--exercise);
+}
+
+.place-icon-badge.activities {
+  background: var(--activities-glow);
+  color: var(--activities);
+}
+
+.place-icon-badge.shopping {
+  background: var(--shopping-glow);
+  color: var(--shopping);
+}
+
+.place-icon-badge.third_place {
+  background: var(--third-place-glow);
+  color: var(--third-place);
+}
+
 .place-icon-badge.other {
   background: var(--primary-glow);
   color: var(--primary);
@@ -617,6 +681,30 @@ p {
   background: var(--warning-glow);
   color: var(--warning);
   border: 1px solid rgba(245, 158, 11, 0.15);
+}
+
+.place-special-tag.exercise {
+  background: var(--exercise-glow);
+  color: var(--exercise);
+  border: 1px solid rgba(6, 182, 212, 0.15);
+}
+
+.place-special-tag.activities {
+  background: var(--activities-glow);
+  color: var(--activities);
+  border: 1px solid rgba(236, 72, 153, 0.15);
+}
+
+.place-special-tag.shopping {
+  background: var(--shopping-glow);
+  color: var(--shopping);
+  border: 1px solid rgba(249, 115, 22, 0.15);
+}
+
+.place-special-tag.third_place {
+  background: var(--third-place-glow);
+  color: var(--third-place);
+  border: 1px solid rgba(139, 92, 246, 0.15);
 }
 
 .place-address {
@@ -776,6 +864,10 @@ p {
 }
 .stop-type-dot.home { background: var(--success); }
 .stop-type-dot.office { background: var(--warning); }
+.stop-type-dot.exercise { background: var(--exercise); }
+.stop-type-dot.activities { background: var(--activities); }
+.stop-type-dot.shopping { background: var(--shopping); }
+.stop-type-dot.third_place { background: var(--third-place); }
 .stop-type-dot.other { background: var(--primary); }
 
 .stop-actions {

@@ -25,6 +25,9 @@ import {
   Download,
   Upload,
   GripVertical,
+  Dumbbell,
+  ShoppingBag,
+  Coffee,
 } from 'lucide-react';
 import { geocodeAddress } from '../services/mapService';
 // Helper to format minutes to standard AM/PM time
@@ -848,6 +851,10 @@ export default function Sidebar({
                 <option value="other">Other / Stop</option>
                 <option value="home">🏠 Home (Special Location)</option>
                 <option value="office">🏢 Office (Special Location)</option>
+                <option value="exercise">💪 Exercise Spot</option>
+                <option value="activities">✨ Morgan's Activities</option>
+                <option value="shopping">🛍️ Shopping</option>
+                <option value="third_place">☕ Third Place</option>
               </select>
             </div>
 
@@ -901,14 +908,20 @@ export default function Sidebar({
                   <div key={place.id} className="place-card" style={{ borderColor: isCurrentlyEditing ? 'var(--primary)' : '' }}>
                     <div className="place-card-left">
                       <div
-                        className={`place-icon-badge ${
-                          isHome ? 'home' : isOffice ? 'office' : 'other'
-                        }`}
+                        className={`place-icon-badge ${place.type || 'other'}`}
                       >
-                        {isHome ? (
+                        {place.type === 'home' ? (
                           <HomeIcon size={16} />
-                        ) : isOffice ? (
+                        ) : place.type === 'office' ? (
                           <Building2 size={16} />
+                        ) : place.type === 'exercise' ? (
+                          <Dumbbell size={16} />
+                        ) : place.type === 'activities' ? (
+                          <Sparkles size={16} />
+                        ) : place.type === 'shopping' ? (
+                          <ShoppingBag size={16} />
+                        ) : place.type === 'third_place' ? (
+                          <Coffee size={16} />
                         ) : (
                           <MapPin size={16} />
                         )}
@@ -916,8 +929,12 @@ export default function Sidebar({
                       <div className="place-info">
                         <div className="place-name">
                           {place.name}
-                          {isHome && <span className="place-special-tag home">Home</span>}
-                          {isOffice && <span className="place-special-tag office">Office</span>}
+                          {place.type === 'home' && <span className="place-special-tag home">Home</span>}
+                          {place.type === 'office' && <span className="place-special-tag office">Office</span>}
+                          {place.type === 'exercise' && <span className="place-special-tag exercise">Exercise Spot</span>}
+                          {place.type === 'activities' && <span className="place-special-tag activities">Morgan's Activities</span>}
+                          {place.type === 'shopping' && <span className="place-special-tag shopping">Shopping</span>}
+                          {place.type === 'third_place' && <span className="place-special-tag third_place">Third Place</span>}
                         </div>
                         <div className="place-address" title={place.address}>
                           {place.address}
@@ -1117,7 +1134,15 @@ export default function Sidebar({
                     </option>
                     {places.map((place) => (
                       <option key={place.id} value={place.id}>
-                        {place.name} ({place.type === 'home' ? 'Home' : place.type === 'office' ? 'Office' : place.address.split(',')[0]})
+                        {place.name} ({
+                          place.type === 'home' ? 'Home'
+                          : place.type === 'office' ? 'Office'
+                          : place.type === 'exercise' ? 'Exercise Spot'
+                          : place.type === 'activities' ? "Morgan's Activities"
+                          : place.type === 'shopping' ? 'Shopping'
+                          : place.type === 'third_place' ? 'Third Place'
+                          : place.address.split(',')[0]
+                        })
                       </option>
                     ))}
                   </select>

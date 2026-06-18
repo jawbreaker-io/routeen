@@ -97,10 +97,14 @@ export default function MapContainer({
             
             <div style="display: flex; flex-direction: column; gap: 4px;">
               <label style="font-size: 9px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Type</label>
-              <select id="popup-place-type" style="background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); padding: 6px 8px; border-radius: 4px; font-size: 12px; outline: none;">
+              <select id="popup-place-type" style="background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); padding: 6px 8px; border-radius: 4px; font-size: 12px; outline: none; width: 100%;">
                 <option value="other">Other / Stop</option>
                 <option value="home">Home (Special)</option>
                 <option value="office">Office (Special)</option>
+                <option value="exercise">Exercise Spot</option>
+                <option value="activities">Morgan's Activities</option>
+                <option value="shopping">Shopping</option>
+                <option value="third_place">Third Place</option>
               </select>
             </div>
             
@@ -243,6 +247,18 @@ export default function MapContainer({
     } else if (type === 'office') {
       iconClass += ' office';
       innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><line x1="9" x2="15" y1="22" y2="22"/><line x1="9" x2="15" y1="18" y2="18"/><line x1="9" x2="15" y1="14" y2="14"/><line x1="9" x2="15" y1="10" y2="10"/><line x1="9" x2="15" y1="6" y2="6"/></svg>`;
+    } else if (type === 'exercise') {
+      iconClass += ' exercise';
+      innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>`;
+    } else if (type === 'activities') {
+      iconClass += ' activities';
+      innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275Z"/><path d="m5 3 1 2.5L8.5 6 6 7 5 9.5 4 7 1.5 6 4 5.5Z"/><path d="m19 17 1 2.5 2.5.5-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1Z"/></svg>`;
+    } else if (type === 'shopping') {
+      iconClass += ' shopping';
+      innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`;
+    } else if (type === 'third_place') {
+      iconClass += ' third_place';
+      innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="14" y1="2" y2="2"/></svg>`;
     } else {
       iconClass += ' other';
       innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`;
@@ -274,9 +290,16 @@ export default function MapContainer({
       const icon = createCustomIcon(place.type, isSelectedInSandbox, undefined);
       const marker = L.marker([place.lat, place.lng], { icon });
 
-      const isHome = place.type === 'home';
-      const isOffice = place.type === 'office';
-      const typeLabel = isHome ? 'Home' : isOffice ? 'Office' : 'Saved Place';
+      const typeLabels = {
+        home: 'Home',
+        office: 'Office',
+        exercise: 'Exercise Spot',
+        activities: "Morgan's Activities",
+        shopping: 'Shopping',
+        third_place: 'Third Place',
+        other: 'Saved Place'
+      };
+      const typeLabel = typeLabels[place.type] || 'Saved Place';
 
       const sandboxToggleText = isSelectedInSandbox ? 'Remove from Sandbox' : 'Select for Sandbox';
       const sandboxBtnStyle = isSelectedInSandbox 
