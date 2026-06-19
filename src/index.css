@@ -744,6 +744,126 @@ p {
   flex-shrink: 0;
 }
 
+.saved-places-tray .section-title {
+  margin-bottom: 12px;
+}
+
+.saved-place-search {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.saved-place-search .text-input {
+  padding-left: 38px;
+}
+
+.saved-places-tray-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 304px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.saved-place-row {
+  min-height: 54px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.saved-place-row:hover {
+  border-color: rgba(99, 102, 241, 0.2);
+}
+
+.saved-place-row.editing {
+  border-color: var(--primary);
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+
+.saved-place-row-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.saved-place-row .place-info {
+  min-width: 0;
+}
+
+.saved-place-row .place-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-place-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.saved-place-primary-action {
+  min-width: 68px;
+  padding: 6px 8px;
+  font-size: 11px;
+}
+
+.saved-place-primary-action.selected {
+  border-color: var(--info);
+  color: var(--info);
+  background: var(--info-glow);
+}
+
+.saved-place-icon-button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+}
+
+.place-form-panel {
+  scroll-margin: 16px;
+}
+
+.place-form-panel.collapsed {
+  padding-bottom: 14px;
+}
+
+.place-form-panel.collapsed .section-title {
+  margin-bottom: 0;
+}
+
+.place-form-panel-title {
+  gap: 10px;
+}
+
+.place-form-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.place-form-toggle {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+}
+
+.route-builder-section {
+  border-color: rgba(79, 70, 229, 0.18);
+}
+
 /* Mode Switch Tabs */
 .mode-switch {
   display: flex;
@@ -846,6 +966,83 @@ p {
   background: var(--primary);
   color: white;
   box-shadow: var(--shadow-sm);
+}
+
+.projection-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px 6px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.projection-card-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.projection-card-subtitle {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.projection-card-distance {
+  font-size: 13px;
+  font-weight: 750;
+  color: var(--primary);
+  margin-top: 4px;
+}
+
+.projection-card-duration {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.projection-entertainment {
+  border-top: 1.5px dashed var(--border-color);
+  margin-top: 12px;
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.projection-entertainment-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.projection-mini-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px 4px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.projection-mini-value {
+  font-size: 12.5px;
+  font-weight: 750;
+  color: var(--primary);
+}
+
+.projection-mini-label {
+  font-size: 9.5px;
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
 /* Schedule stops list */
