@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Home as HomeIcon,
   Building2,
@@ -55,6 +55,42 @@ const formatDuration = (mins) => {
 
 const sumWeeklyStats = (weeklyStats, days, field) =>
   days.reduce((sum, day) => sum + (weeklyStats?.[day.key]?.[field] || 0), 0);
+
+const cx = (...classes) => classes.filter(Boolean).join(' ');
+
+const PLACE_TYPE_META = {
+  home: { label: 'Home', Icon: HomeIcon },
+  office: { label: 'Office', Icon: Building2 },
+  exercise: { label: 'Exercise Spot', Icon: Dumbbell },
+  activities: { label: "Morgan's Activities", Icon: Sparkles },
+  shopping: { label: 'Shopping', Icon: ShoppingBag },
+  third_place: { label: 'Third Place', Icon: Coffee },
+  eatery: { label: 'Eatery', Icon: Utensils },
+  other: { label: 'Other', Icon: MapPin },
+};
+
+const getPlaceTypeMeta = (type) => PLACE_TYPE_META[type] || PLACE_TYPE_META.other;
+const getPlaceTypeLabel = (type) => getPlaceTypeMeta(type).label;
+
+function PlaceIconBadge({ type }) {
+  const { Icon } = getPlaceTypeMeta(type);
+  return (
+    <div className={`place-icon-badge ${type || 'other'}`}>
+      <Icon size={16} />
+    </div>
+  );
+}
+
+function PlaceTypeTag({ type }) {
+  const normalizedType = type || 'other';
+  if (normalizedType === 'other') return null;
+
+  return (
+    <span className={`place-special-tag ${normalizedType}`}>
+      {getPlaceTypeLabel(normalizedType)}
+    </span>
+  );
+}
 
 // Subcomponent for each timeline item to prevent input jumping/cursor issues
 function TimelineStopCard({
@@ -248,7 +284,7 @@ function TimelineStopCard({
             fontSize: '11.5px',
             color: 'var(--text-muted)'
           }}>
-            📍 Add destinations above or click on the map to build your commute route.
+            📍 Add destinations from the saved-place tray below or click on the map to build your commute route.
           </div>
         </div>
       )}
@@ -273,6 +309,958 @@ function TimelineStopCard({
           </span>
         </div>
       )}
+    </div>
+  );
+}
+
+function SidebarHeader({ theme, onToggleTheme, onOpenDashboard }) {
+  return (
+    <div className="sidebar-header">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        <div className="sidebar-logo">
+          <Compass size={22} />
+          <h1>Routeen</h1>
+        </div>
+        <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+          Daily Commute Planner
+        </p>
+      </div>
+
+      <div style={{ display: 'flex', gap: '6px' }}>
+        <button
+          type="button"
+          onClick={onOpenDashboard}
+          className="theme-toggle-btn"
+          title="Open Analytics & Weekly Summary"
+          style={{ color: 'var(--primary)' }}
+        >
+          <BarChart3 size={15} />
+        </button>
+
+        <button
+          type="button"
+          onClick={onToggleTheme}
+          className="theme-toggle-btn"
+          title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+        >
+          {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ModeSwitch({ activeMode, onModeChange }) {
+  return (
+    <div className="mode-switch">
+      <button
+        type="button"
+        className={`mode-tab ${activeMode === 'schedule' ? 'active' : ''}`}
+        onClick={() => onModeChange('schedule')}
+      >
+        <Calendar size={15} />
+        Weekly Planner
+      </button>
+      <button
+        type="button"
+        className={`mode-tab ${activeMode === 'sandbox' ? 'active' : ''}`}
+        onClick={() => onModeChange('sandbox')}
+      >
+        <Route size={15} />
+        Route Sandbox
+      </button>
+    </div>
+  );
+}
+
+function SavedPlacesTray({
+  places,
+  activeMode,
+  sandboxPoints,
+  editingPlaceId,
+  onAddStopToActiveDay,
+  onToggleSandboxPoint,
+  onStartEdit,
+  onCancelEdit,
+  onDeletePlace,
+  onShowToast,
+  className = '',
+}) {
+  const [query, setQuery] = useState('');
+  const filteredPlaces = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return places;
+
+    return places.filter((place) =>
+      [place.name, place.address, getPlaceTypeLabel(place.type)]
+        .filter(Boolean)
+        .some((value) => value.toLowerCase().includes(normalizedQuery))
+    );
+  }, [places, query]);
+
+  return (
+    <div className={cx('section-card saved-places-tray', className)}>
+      <div className="section-title">
+        <h2>
+          <MapPin size={16} style={{ color: 'var(--primary)' }} />
+          Saved Places ({places.length})
+        </h2>
+      </div>
+
+      <div className="saved-place-search">
+        <Search className="input-icon" />
+        <input
+          type="search"
+          className="text-input"
+          placeholder="Search name, address, or type"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
+
+      {places.length === 0 ? (
+        <div className="empty-state">
+          <MapPin size={24} />
+          <p>No places saved yet.</p>
+          <p style={{ fontSize: '11px' }}>Search below or click on the map to save places.</p>
+        </div>
+      ) : filteredPlaces.length === 0 ? (
+        <div className="empty-state">
+          <Search size={24} />
+          <p>No saved places match that search.</p>
+        </div>
+      ) : (
+        <div className="saved-places-tray-list">
+          {filteredPlaces.map((place) => {
+            const isSelectedInSandbox =
+              activeMode === 'sandbox' && sandboxPoints.includes(place.id);
+            const isCurrentlyEditing = editingPlaceId === place.id;
+
+            return (
+              <div
+                key={place.id}
+                className={cx('saved-place-row', isCurrentlyEditing && 'editing')}
+              >
+                <div className="saved-place-row-main">
+                  <PlaceIconBadge type={place.type} />
+                  <div className="place-info">
+                    <div className="place-name">
+                      {place.name}
+                      <PlaceTypeTag type={place.type} />
+                    </div>
+                    <div className="place-address" title={place.address}>
+                      {place.address}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="saved-place-row-actions">
+                  {activeMode === 'schedule' ? (
+                    <button
+                      type="button"
+                      className="button-secondary saved-place-primary-action"
+                      onClick={() => onAddStopToActiveDay(place)}
+                      title="Add to active day"
+                    >
+                      <Plus size={12} />
+                      Add
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className={cx(
+                        'button-secondary saved-place-primary-action',
+                        isSelectedInSandbox && 'selected'
+                      )}
+                      onClick={() => onToggleSandboxPoint(place.id)}
+                      title="Toggle sandbox routing selection"
+                    >
+                      {isSelectedInSandbox ? 'Selected' : 'Select'}
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    className="button-secondary saved-place-icon-button"
+                    onClick={() => onStartEdit(place)}
+                    disabled={isCurrentlyEditing}
+                    title="Edit saved place"
+                  >
+                    <Edit size={12} />
+                  </button>
+
+                  <button
+                    type="button"
+                    className="button-danger saved-place-icon-button"
+                    onClick={() => {
+                      if (
+                        confirm(
+                          `Are you sure you want to delete "${place.name}"? This will also remove it from all daily schedules.`
+                        )
+                      ) {
+                        if (isCurrentlyEditing) onCancelEdit();
+                        onDeletePlace(place.id);
+                        onShowToast(`Deleted "${place.name}"`, 'info');
+                      }
+                    }}
+                    title="Delete saved place"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PlaceFormPanel({
+  panelRef,
+  isOpen,
+  editingPlaceId,
+  placeName,
+  placeAddress,
+  placeType,
+  searchLoading,
+  searchSuggestions,
+  limitToLocal,
+  homePlace,
+  onToggle,
+  onSubmit,
+  onCancelEdit,
+  onAddressSearch,
+  onSelectSuggestion,
+  onPlaceNameChange,
+  onPlaceAddressChange,
+  onPlaceTypeChange,
+  onLimitToLocalChange,
+  className = '',
+}) {
+  return (
+    <div
+      ref={panelRef}
+      className={cx('section-card place-form-panel', !isOpen && 'collapsed', className)}
+      style={{ borderColor: editingPlaceId ? 'var(--primary)' : '' }}
+    >
+      <div className="section-title place-form-panel-title">
+        <h2 style={{ color: editingPlaceId ? 'var(--primary)' : '' }}>
+          <MapPin size={16} style={{ color: editingPlaceId ? 'var(--primary)' : 'var(--text-secondary)' }} />
+          {editingPlaceId ? 'Edit Saved Place' : 'Add / Edit Place'}
+        </h2>
+        <div className="place-form-panel-actions">
+          {editingPlaceId && (
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={onCancelEdit}
+              style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--text-muted)' }}
+            >
+              Cancel
+            </button>
+          )}
+          <button
+            type="button"
+            className="button-secondary place-form-toggle"
+            onClick={onToggle}
+            title={isOpen ? 'Collapse place form' : 'Open place form'}
+          >
+            {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+        </div>
+      </div>
+
+      {isOpen && (
+        <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div className="form-group">
+            <label className="form-label">Location Name</label>
+            <div className="input-wrapper">
+              <Compass className="input-icon" />
+              <input
+                type="text"
+                className="text-input"
+                placeholder="E.g., Home, Office, Gym, Cafe"
+                value={placeName}
+                onChange={(e) => onPlaceNameChange(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="form-group" style={{ position: 'relative' }}>
+            <label className="form-label">Address or Name</label>
+            <div className="input-wrapper" style={{ display: 'flex', gap: '6px' }}>
+              <div style={{ position: 'relative', flexGrow: 1 }}>
+                <MapPin className="input-icon" />
+                <input
+                  type="text"
+                  className="text-input"
+                  placeholder="Enter address or business name"
+                  value={placeAddress}
+                  onChange={(e) => onPlaceAddressChange(e.target.value)}
+                />
+              </div>
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={onAddressSearch}
+                disabled={searchLoading}
+                style={{ flexShrink: 0, padding: '10px' }}
+                title="Search & verify address"
+              >
+                <Search size={16} />
+              </button>
+            </div>
+
+            {searchSuggestions.length > 0 && (
+              <div className="search-results-dropdown">
+                {searchSuggestions.map((item, idx) => (
+                  <div
+                    key={`${item.address}-${idx}`}
+                    className="search-result-item"
+                    onClick={() => onSelectSuggestion(item)}
+                    title={item.address}
+                  >
+                    {item.address}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <input
+              type="checkbox"
+              id="limit-to-local-checkbox"
+              checked={limitToLocal}
+              disabled={!homePlace}
+              onChange={(e) => onLimitToLocalChange(e.target.checked)}
+              style={{
+                width: '14px',
+                height: '14px',
+                cursor: homePlace ? 'pointer' : 'not-allowed',
+                accentColor: 'var(--primary)',
+              }}
+            />
+            <label
+              htmlFor="limit-to-local-checkbox"
+              style={{
+                fontSize: '12px',
+                color: homePlace ? 'var(--text-primary)' : 'var(--text-muted)',
+                cursor: homePlace ? 'pointer' : 'not-allowed',
+                fontWeight: 500,
+              }}
+              title={!homePlace ? 'Save a Home location first to enable this limit' : 'Limit to 50 miles of Home'}
+            >
+              Limit to 50 miles of Home {!homePlace && <span style={{ fontSize: '10px', color: 'var(--danger)' }}>(Requires Home)</span>}
+            </label>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Location Type</label>
+            <select
+              className="select-input"
+              value={placeType}
+              onChange={(e) => onPlaceTypeChange(e.target.value)}
+            >
+              <option value="other">Other / Stop</option>
+              <option value="home">Home (Special Location)</option>
+              <option value="office">Office (Special Location)</option>
+              <option value="exercise">Exercise Spot</option>
+              <option value="activities">Morgan's Activities</option>
+              <option value="shopping">Shopping</option>
+              <option value="third_place">Third Place</option>
+              <option value="eatery">Eatery</option>
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+            <button
+              type="submit"
+              className="button-primary"
+              disabled={searchLoading || !placeName.trim() || !placeAddress.trim()}
+              style={{ flex: 1 }}
+            >
+              {editingPlaceId ? <Sparkles size={16} /> : <Plus size={16} />}
+              {editingPlaceId ? 'Update Location' : 'Save Location'}
+            </button>
+            {editingPlaceId && (
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={onCancelEdit}
+                style={{ padding: '10px' }}
+                title="Cancel edit"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function WeeklyPlannerSection({
+  activeDay,
+  setActiveDay,
+  activeDaySchedule,
+  startTime,
+  onUpdateStartTime,
+  onCopySchedule,
+  schedules,
+  onOptimizeRoute,
+  timeline,
+  hasHome,
+  activeRouteDetails,
+  showDirections,
+  setShowDirections,
+  onSendToGoogleMaps,
+  onCopySummary,
+  draggedIndex,
+  dragOverIndex,
+  handleDragStart,
+  handleDragOver,
+  handleDragEnd,
+  handleDrop,
+  onReorderStop,
+  onRemoveStopFromActiveDay,
+  onUpdateStayDuration,
+  className = '',
+}) {
+  return (
+    <div className={cx('section-card route-builder-section', className)}>
+      <div className="section-title">
+        <h2>
+          <Calendar size={16} style={{ color: 'var(--primary)' }} />
+          Daily Road Maps
+        </h2>
+      </div>
+
+      <div className="days-tabs">
+        {DAYS_OF_WEEK.map((day) => (
+          <button
+            type="button"
+            key={day.key}
+            className={`day-tab ${activeDay === day.key ? 'active' : ''}`}
+            onClick={() => {
+              setActiveDay(day.key);
+              setShowDirections(false);
+            }}
+          >
+            {day.short}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Clock size={14} style={{ color: 'var(--text-muted)' }} />
+          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>Leave:</span>
+          <input
+            type="time"
+            className="text-input"
+            style={{ width: '85px', padding: '4px 6px', fontSize: '12px', height: '28px' }}
+            value={startTime || '08:00'}
+            onChange={(e) => onUpdateStartTime(e.target.value)}
+          />
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Copy size={13} style={{ color: 'var(--text-muted)' }} />
+          <select
+            className="select-input"
+            onChange={(e) => {
+              if (e.target.value) {
+                if (activeDaySchedule.length > 0) {
+                  if (confirm(`Overwrite active schedule for ${getDayLabel(activeDay)} with the schedule from ${getDayLabel(e.target.value)}?`)) {
+                    onCopySchedule(e.target.value, activeDay);
+                  }
+                } else {
+                  onCopySchedule(e.target.value, activeDay);
+                }
+                e.target.value = '';
+              }
+            }}
+            defaultValue=""
+            style={{
+              width: '130px',
+              fontSize: '11.5px',
+              padding: '4px 24px 4px 8px',
+              height: '28px',
+              backgroundPosition: 'right 6px center',
+              backgroundSize: '12px',
+              cursor: 'pointer',
+            }}
+          >
+            <option value="" disabled>Copy from...</option>
+            {DAYS_OF_WEEK
+              .filter((day) => day.key !== activeDay)
+              .map((day) => {
+                const count = schedules?.[day.key]?.length || 0;
+                return (
+                  <option key={day.key} value={day.key} disabled={count === 0}>
+                    {day.label} {count > 0 ? `(${count} stop${count === 1 ? '' : 's'})` : '(empty)'}
+                  </option>
+                );
+              })}
+          </select>
+        </div>
+      </div>
+
+      {activeDaySchedule.length >= 4 && (
+        <button
+          type="button"
+          className="button-secondary"
+          onClick={onOptimizeRoute}
+          style={{
+            width: '100%',
+            padding: '6px 12px',
+            fontSize: '12px',
+            color: 'var(--success)',
+            borderColor: 'var(--success)',
+            background: 'var(--success-glow)',
+            marginBottom: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+          }}
+          title="Optimize stop order to minimize distance"
+        >
+          <Sparkles size={12} />
+          Optimize Stop Sequence Order
+        </button>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div className="schedule-stops-container">
+          {activeDaySchedule.length === 0 && !hasHome ? (
+            <div className="empty-state">
+              <Route size={24} />
+              <p>No stops added for {getDayLabel(activeDay)}.</p>
+              <p style={{ fontSize: '11px' }}>
+                Use the saved-place tray below to add stops.
+              </p>
+            </div>
+          ) : (
+            timeline.map((stop, index) => {
+              const isFixed = stop.isHomeStart || stop.isHomeEnd;
+              const scheduleIndex = isFixed ? -1 : activeDaySchedule.findIndex((s) => s.id === stop.stopId);
+
+              return (
+                <TimelineStopCard
+                  key={stop.stopId || `fixed-${index}`}
+                  stop={stop}
+                  index={index}
+                  isFixed={isFixed}
+                  scheduleIndex={scheduleIndex}
+                  activeDaySchedule={activeDaySchedule}
+                  timeline={timeline}
+                  onReorderStop={onReorderStop}
+                  onRemoveStopFromActiveDay={onRemoveStopFromActiveDay}
+                  onUpdateStayDuration={onUpdateStayDuration}
+                  draggedIndex={draggedIndex}
+                  dragOverIndex={dragOverIndex}
+                  handleDragStart={handleDragStart}
+                  handleDragOver={handleDragOver}
+                  handleDragEnd={handleDragEnd}
+                  handleDrop={handleDrop}
+                />
+              );
+            })
+          )}
+        </div>
+
+        {timeline.length >= 2 && activeRouteDetails && (
+          <>
+            <div className="stats-summary">
+              <div className="stat-item">
+                <div className="stat-icon-wrapper">
+                  <Route size={16} />
+                </div>
+                <div>
+                  <div className="stat-label">Distance</div>
+                  <div className="stat-value">
+                    {activeRouteDetails.distance.toFixed(1)} mi
+                  </div>
+                </div>
+              </div>
+
+              <div className="stat-item">
+                <div className="stat-icon-wrapper">
+                  <Clock size={16} />
+                </div>
+                <div>
+                  <div className="stat-label">Driving Time</div>
+                  <div className="stat-value">
+                    {activeRouteDetails.duration < 60
+                      ? `${Math.round(activeRouteDetails.duration)} mins`
+                      : `${Math.floor(activeRouteDetails.duration / 60)}h ${Math.round(
+                          activeRouteDetails.duration % 60
+                        )}m`}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+              <button
+                type="button"
+                className="button-primary"
+                onClick={onSendToGoogleMaps}
+                style={{ flex: 1, padding: '8px 12px', fontSize: '12px' }}
+              >
+                <Navigation size={13} />
+                Open Google Maps
+              </button>
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={onCopySummary}
+                style={{ padding: '8px 12px', fontSize: '12px' }}
+                title="Copy itinerary details to clipboard"
+              >
+                <Copy size={13} />
+              </button>
+            </div>
+
+            <div>
+              <button
+                type="button"
+                className="directions-toggle"
+                onClick={() => setShowDirections(!showDirections)}
+              >
+                <span>
+                  {showDirections ? 'Hide Step-by-Step Directions' : 'Show Step-by-Step Directions'}
+                </span>
+                {showDirections ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+
+              {showDirections && activeRouteDetails.steps && (
+                <div className="directions-list">
+                  {activeRouteDetails.steps.map((step, idx) => (
+                    <div key={idx} className="direction-step">
+                      <span className="direction-text">{step.instruction}</span>
+                      <span className="direction-meta">
+                        {step.distance.toFixed(2)} mi ({Math.round(step.duration * 2) / 2}m)
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CommuteProjectionsSection({ weeklyStats, className = '' }) {
+  const [projectionMode, setProjectionMode] = useState('workdays');
+  const projectionDays = projectionMode === 'workdays' ? WORKDAY_DAYS : DAYS_OF_WEEK;
+  const projectionWeeklyDistance = sumWeeklyStats(weeklyStats, projectionDays, 'distance');
+  const projectionWeeklyDuration = sumWeeklyStats(weeklyStats, projectionDays, 'duration');
+  const projectionMonthlyDistance = projectionWeeklyDistance * (52 / 12);
+  const projectionMonthlyDuration = projectionWeeklyDuration * (52 / 12);
+  const projectionYearlyDistance = projectionWeeklyDistance * 52;
+  const projectionYearlyDuration = projectionWeeklyDuration * 52;
+  const projectionDayCount = projectionDays.length;
+  const projectionModeLabel = projectionMode === 'workdays' ? 'workdays' : 'days';
+
+  return (
+    <div className={cx('section-card', className)}>
+      <div className="section-title">
+        <h2>
+          <Route size={16} style={{ color: 'var(--primary)' }} />
+          Commute Projections
+        </h2>
+      </div>
+      <div className="projection-toggle" aria-label="Projection range">
+        <button
+          type="button"
+          className={`projection-toggle-btn ${projectionMode === 'workdays' ? 'active' : ''}`}
+          onClick={() => setProjectionMode('workdays')}
+          aria-pressed={projectionMode === 'workdays'}
+        >
+          Workdays
+        </button>
+        <button
+          type="button"
+          className={`projection-toggle-btn ${projectionMode === 'full-week' ? 'active' : ''}`}
+          onClick={() => setProjectionMode('full-week')}
+          aria-pressed={projectionMode === 'full-week'}
+        >
+          Full Week
+        </button>
+      </div>
+      <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: '1.4' }}>
+        {projectionMode === 'workdays'
+          ? 'Driving mileage and time spent on workday commutes (Monday-Friday), accounting for 260 workdays per year.'
+          : 'Driving mileage and time spent across the full weekly routine, including Saturday and Sunday routes.'}
+      </p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+        <div className="projection-card">
+          <div className="projection-card-title">Weekly</div>
+          <div className="projection-card-subtitle">
+            {projectionDayCount} {projectionModeLabel}
+          </div>
+          <div className="projection-card-distance">
+            {projectionWeeklyDistance.toFixed(1)} mi
+          </div>
+          <div className="projection-card-duration">
+            {formatDuration(projectionWeeklyDuration)}
+          </div>
+        </div>
+
+        <div className="projection-card">
+          <div className="projection-card-title">Monthly</div>
+          <div className="projection-card-subtitle">
+            Avg. {((projectionDayCount * 52) / 12).toFixed(1)} {projectionModeLabel}
+          </div>
+          <div className="projection-card-distance">
+            {projectionMonthlyDistance.toFixed(1)} mi
+          </div>
+          <div className="projection-card-duration">
+            {formatDuration(projectionMonthlyDuration)}
+          </div>
+        </div>
+
+        <div className="projection-card">
+          <div className="projection-card-title">Yearly</div>
+          <div className="projection-card-subtitle">
+            {projectionDayCount * 52} {projectionModeLabel}
+          </div>
+          <div className="projection-card-distance">
+            {projectionYearlyDistance.toLocaleString(undefined, { maximumFractionDigits: 1 })} mi
+          </div>
+          <div className="projection-card-duration">
+            {formatDuration(projectionYearlyDuration)}
+          </div>
+        </div>
+      </div>
+
+      <div className="projection-entertainment">
+        <div className="projection-entertainment-title">
+          Commute Entertainment (Yearly)
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginTop: '2px' }}>
+          <div className="projection-mini-card">
+            <span style={{ fontSize: '15px' }} title="Based on average audiobook length of 10 hours">📚</span>
+            <span className="projection-mini-value">
+              {Math.floor(projectionYearlyDuration / 600).toLocaleString()}
+            </span>
+            <span className="projection-mini-label">Audiobooks</span>
+          </div>
+
+          <div className="projection-mini-card">
+            <span style={{ fontSize: '15px' }} title="Based on average song length of 3.5 minutes">🎵</span>
+            <span className="projection-mini-value">
+              {Math.floor(projectionYearlyDuration / 3.5).toLocaleString()}
+            </span>
+            <span className="projection-mini-label">Songs</span>
+          </div>
+
+          <div className="projection-mini-card">
+            <span style={{ fontSize: '15px' }} title="Based on average podcast episode of 45 minutes">🎙️</span>
+            <span className="projection-mini-value">
+              {Math.floor(projectionYearlyDuration / 45).toLocaleString()}
+            </span>
+            <span className="projection-mini-label">Podcast Eps</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SandboxRouteBuilderSection({
+  places,
+  sandboxPoints,
+  onToggleSandboxPoint,
+  onClearSandbox,
+  activeRouteDetails,
+  showDirections,
+  setShowDirections,
+  className = '',
+}) {
+  return (
+    <div className={cx('section-card route-builder-section', className)}>
+      <div className="section-title">
+        <h2>
+          <Route size={16} style={{ color: 'var(--info)' }} />
+          Ad-hoc Route Sandbox
+        </h2>
+        {sandboxPoints.length > 0 && (
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={onClearSandbox}
+            style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--danger)' }}
+          >
+            Clear Selection
+          </button>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div className="sandbox-points-list">
+          {sandboxPoints.length === 0 ? (
+            <div className="empty-state">
+              <Route size={24} style={{ color: 'var(--info)' }} />
+              <p>No places selected for sandbox routing.</p>
+              <p style={{ fontSize: '11px' }}>
+                Use the saved-place tray below or map markers to choose points.
+              </p>
+            </div>
+          ) : (
+            sandboxPoints.map((placeId, index) => {
+              const place = places.find((p) => p.id === placeId);
+              if (!place) return null;
+
+              return (
+                <div key={placeId} className="sandbox-point-item">
+                  <div className="sandbox-point-info">
+                    <div
+                      className="stop-number"
+                      style={{ background: 'var(--info-glow)', color: 'var(--info)' }}
+                    >
+                      {index + 1}
+                    </div>
+                    <span>{place.name}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="stop-btn-arrow"
+                    onClick={() => onToggleSandboxPoint(placeId)}
+                    style={{ color: 'var(--danger)' }}
+                    title="Deselect"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {sandboxPoints.length >= 2 && activeRouteDetails && (
+          <>
+            <div className="stats-summary" style={{ borderColor: 'var(--border-color)' }}>
+              <div className="stat-item">
+                <div className="stat-icon-wrapper" style={{ color: 'var(--info)', background: 'var(--info-glow)' }}>
+                  <Route size={16} />
+                </div>
+                <div>
+                  <div className="stat-label">Sandbox Dist</div>
+                  <div className="stat-value" style={{ color: 'var(--info)' }}>
+                    {activeRouteDetails.distance.toFixed(1)} mi
+                  </div>
+                </div>
+              </div>
+
+              <div className="stat-item">
+                <div className="stat-icon-wrapper" style={{ color: 'var(--info)', background: 'var(--info-glow)' }}>
+                  <Clock size={16} />
+                </div>
+                <div>
+                  <div className="stat-label">Est. Driving</div>
+                  <div className="stat-value">
+                    {activeRouteDetails.duration < 60
+                      ? `${Math.round(activeRouteDetails.duration)} mins`
+                      : `${Math.floor(activeRouteDetails.duration / 60)}h ${Math.round(
+                          activeRouteDetails.duration % 60
+                        )}m`}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <button
+                type="button"
+                className="directions-toggle"
+                onClick={() => setShowDirections(!showDirections)}
+              >
+                <span>
+                  {showDirections ? 'Hide Step-by-Step Directions' : 'Show Step-by-Step Directions'}
+                </span>
+                {showDirections ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+
+              {showDirections && activeRouteDetails.steps && (
+                <div className="directions-list">
+                  {activeRouteDetails.steps.map((step, idx) => (
+                    <div key={idx} className="direction-step">
+                      <span className="direction-text">{step.instruction}</span>
+                      <span className="direction-meta">
+                        {step.distance.toFixed(2)} mi ({Math.round(step.duration * 2) / 2}m)
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SettingsSection({
+  fileInputRef,
+  onExportConfig,
+  onImportClick,
+  onFileChange,
+  className = '',
+}) {
+  return (
+    <div className={cx('section-card', className)}>
+      <div className="section-title">
+        <h2>
+          <Settings size={16} style={{ color: 'var(--text-secondary)' }} />
+          Backup & Settings
+        </h2>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+          Save your frequent places and daily commute schedules, or restore them from a backup.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '4px' }}>
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={onExportConfig}
+            title="Export configuration as JSON file"
+            style={{ fontSize: '12px', padding: '8px 10px' }}
+          >
+            <Download size={14} />
+            Export
+          </button>
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={onImportClick}
+            title="Import configuration JSON file"
+            style={{ fontSize: '12px', padding: '8px 10px' }}
+          >
+            <Upload size={14} />
+            Import
+          </button>
+        </div>
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={onFileChange}
+          accept=".json"
+          style={{ display: 'none' }}
+        />
+      </div>
     </div>
   );
 }
@@ -315,6 +1303,8 @@ export default function Sidebar({
   const [placeAddress, setPlaceAddress] = useState('');
   const [placeType, setPlaceType] = useState('other');
   const [editingPlaceId, setEditingPlaceId] = useState(null); // stores ID of place being edited
+  const [isPlaceFormOpen, setIsPlaceFormOpen] = useState(false);
+  const placeFormRef = useRef(null);
 
   // Config Import / Export Refs & Handlers
   const fileInputRef = useRef(null);
@@ -407,7 +1397,6 @@ export default function Sidebar({
 
   // Directions Expand State
   const [showDirections, setShowDirections] = useState(false);
-  const [projectionMode, setProjectionMode] = useState('workdays');
 
   // Find if Home location exists
   const homePlace = places.find((p) => p.type === 'home');
@@ -595,12 +1584,11 @@ export default function Sidebar({
     setPlaceType(place.type);
     setSelectedCoords({ lat: place.lat, lng: place.lng });
     setSearchSuggestions([]);
-    
-    // Smooth scroll to top of sidebar where the edit card resides
-    const scrollable = document.querySelector('.sidebar-scrollable');
-    if (scrollable) {
-      scrollable.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    setIsPlaceFormOpen(true);
+
+    window.requestAnimationFrame(() => {
+      placeFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
     onShowToast(`Editing "${place.name}"`, 'info');
   };
 
@@ -612,6 +1600,15 @@ export default function Sidebar({
     setPlaceType('other');
     setSelectedCoords(null);
     setSearchSuggestions([]);
+    setIsPlaceFormOpen(false);
+  };
+
+  const handleTogglePlaceForm = () => {
+    if (isPlaceFormOpen && editingPlaceId) {
+      handleCancelEdit();
+      return;
+    }
+    setIsPlaceFormOpen((prev) => !prev);
   };
 
   // Add or Edit Place Submit
@@ -682,989 +1679,110 @@ export default function Sidebar({
     }
   };
 
-  // Quick Add dropdown
-  const handleQuickAddStop = (e) => {
-    const placeId = e.target.value;
-    if (!placeId) return;
-
-    const place = places.find((p) => p.id === placeId);
-    if (place) {
-      onAddStopToActiveDay(place);
-    }
-    e.target.value = '';
-  };
-
-  const projectionDays = projectionMode === 'workdays' ? WORKDAY_DAYS : DAYS_OF_WEEK;
-  const projectionWeeklyDistance = sumWeeklyStats(weeklyStats, projectionDays, 'distance');
-  const projectionWeeklyDuration = sumWeeklyStats(weeklyStats, projectionDays, 'duration');
-  const projectionMonthlyDistance = projectionWeeklyDistance * (52 / 12);
-  const projectionMonthlyDuration = projectionWeeklyDuration * (52 / 12);
-  const projectionYearlyDistance = projectionWeeklyDistance * 52;
-  const projectionYearlyDuration = projectionWeeklyDuration * 52;
-  const projectionDayCount = projectionDays.length;
-  const projectionModeLabel = projectionMode === 'workdays' ? 'workdays' : 'days';
-
   return (
     <div className="sidebar">
-      {/* Header */}
-      <div className="sidebar-header">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          <div className="sidebar-logo">
-            <Compass size={22} />
-            <h1>Routeen</h1>
-          </div>
-          <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-            Daily Commute Planner
-          </p>
-        </div>
-        
-        <div style={{ display: 'flex', gap: '6px' }}>
-          <button
-            onClick={onOpenDashboard}
-            className="theme-toggle-btn"
-            title="Open Analytics & Weekly Summary"
-            style={{ color: 'var(--primary)' }}
-          >
-            <BarChart3 size={15} />
-          </button>
-          
-          <button
-            onClick={onToggleTheme}
-            className="theme-toggle-btn"
-            title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
-          >
-            {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-          </button>
-        </div>
-      </div>
+      <SidebarHeader
+        theme={theme}
+        onToggleTheme={onToggleTheme}
+        onOpenDashboard={onOpenDashboard}
+      />
 
       <div className="sidebar-scrollable">
-        {/* MODE TABS */}
-        <div className="mode-switch">
-          <button
-            className={`mode-tab ${activeMode === 'schedule' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveMode('schedule');
-              setShowDirections(false);
-            }}
-          >
-            <Calendar size={15} />
-            Weekly Planner
-          </button>
-          <button
-            className={`mode-tab ${activeMode === 'sandbox' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveMode('sandbox');
-              setShowDirections(false);
-            }}
-          >
-            <Route size={15} />
-            Route Sandbox
-          </button>
-        </div>
+        <ModeSwitch
+          activeMode={activeMode}
+          onModeChange={(mode) => {
+            setActiveMode(mode);
+            setShowDirections(false);
+          }}
+        />
 
-        {/* ADD / EDIT PLACE CARD */}
-        <div className="section-card" style={{ borderColor: editingPlaceId ? 'var(--primary)' : '' }}>
-          <div className="section-title">
-            <h2 style={{ color: editingPlaceId ? 'var(--primary)' : '' }}>
-              <MapPin size={16} style={{ color: editingPlaceId ? 'var(--primary)' : 'var(--text-secondary)' }} />
-              {editingPlaceId ? 'Edit Saved Place' : 'Add Frequent Place'}
-            </h2>
-            {editingPlaceId && (
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={handleCancelEdit}
-                style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--text-muted)' }}
-              >
-                Cancel
-              </button>
-            )}
-          </div>
+        {activeMode === 'schedule' ? (
+          <WeeklyPlannerSection
+            activeDay={activeDay}
+            setActiveDay={setActiveDay}
+            activeDaySchedule={activeDaySchedule}
+            startTime={startTime}
+            onUpdateStartTime={onUpdateStartTime}
+            onCopySchedule={onCopySchedule}
+            schedules={schedules}
+            onOptimizeRoute={onOptimizeRoute}
+            timeline={timeline}
+            hasHome={hasHome}
+            activeRouteDetails={activeRouteDetails}
+            showDirections={showDirections}
+            setShowDirections={setShowDirections}
+            onSendToGoogleMaps={handleSendToGoogleMaps}
+            onCopySummary={handleCopySummary}
+            draggedIndex={draggedIndex}
+            dragOverIndex={dragOverIndex}
+            handleDragStart={handleDragStart}
+            handleDragOver={handleDragOver}
+            handleDragEnd={handleDragEnd}
+            handleDrop={handleDrop}
+            onReorderStop={onReorderStop}
+            onRemoveStopFromActiveDay={onRemoveStopFromActiveDay}
+            onUpdateStayDuration={onUpdateStayDuration}
+          />
+        ) : (
+          <SandboxRouteBuilderSection
+            places={places}
+            sandboxPoints={sandboxPoints}
+            onToggleSandboxPoint={onToggleSandboxPoint}
+            onClearSandbox={onClearSandbox}
+            activeRouteDetails={activeRouteDetails}
+            showDirections={showDirections}
+            setShowDirections={setShowDirections}
+          />
+        )}
 
-          <form onSubmit={handleAddPlaceSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div className="form-group">
-              <label className="form-label">Location Name</label>
-              <div className="input-wrapper">
-                <Compass className="input-icon" />
-                <input
-                  type="text"
-                  className="text-input"
-                  placeholder="E.g., Home, Office, Gym, Cafe"
-                  value={placeName}
-                  onChange={(e) => setPlaceName(e.target.value)}
-                />
-              </div>
-            </div>
+        <SavedPlacesTray
+          places={places}
+          activeMode={activeMode}
+          sandboxPoints={sandboxPoints}
+          editingPlaceId={editingPlaceId}
+          onAddStopToActiveDay={onAddStopToActiveDay}
+          onToggleSandboxPoint={onToggleSandboxPoint}
+          onStartEdit={handleStartEdit}
+          onCancelEdit={handleCancelEdit}
+          onDeletePlace={onDeletePlace}
+          onShowToast={onShowToast}
+        />
 
-            <div className="form-group" style={{ position: 'relative' }}>
-              <label className="form-label">Address or Name</label>
-              <div className="input-wrapper" style={{ display: 'flex', gap: '6px' }}>
-                <div style={{ position: 'relative', flexGrow: 1 }}>
-                  <MapPin className="input-icon" />
-                  <input
-                    type="text"
-                    className="text-input"
-                    placeholder="Enter address or business name"
-                    value={placeAddress}
-                    onChange={(e) => {
-                      setPlaceAddress(e.target.value);
-                      setSelectedCoords(null);
-                    }}
-                  />
-                </div>
-                <button
-                  type="button"
-                  className="button-secondary"
-                  onClick={handleAddressSearch}
-                  disabled={searchLoading}
-                  style={{ flexShrink: 0, padding: '10px' }}
-                  title="Search & verify address"
-                >
-                  <Search size={16} />
-                </button>
-              </div>
+        <PlaceFormPanel
+          panelRef={placeFormRef}
+          isOpen={isPlaceFormOpen}
+          editingPlaceId={editingPlaceId}
+          placeName={placeName}
+          placeAddress={placeAddress}
+          placeType={placeType}
+          searchLoading={searchLoading}
+          searchSuggestions={searchSuggestions}
+          limitToLocal={limitToLocal}
+          homePlace={homePlace}
+          onToggle={handleTogglePlaceForm}
+          onSubmit={handleAddPlaceSubmit}
+          onCancelEdit={handleCancelEdit}
+          onAddressSearch={handleAddressSearch}
+          onSelectSuggestion={handleSelectSuggestion}
+          onPlaceNameChange={setPlaceName}
+          onPlaceAddressChange={(value) => {
+            setPlaceAddress(value);
+            setSelectedCoords(null);
+          }}
+          onPlaceTypeChange={setPlaceType}
+          onLimitToLocalChange={setLimitToLocal}
+        />
 
-              {/* Suggestions Dropdown */}
-              {searchSuggestions.length > 0 && (
-                <div className="search-results-dropdown">
-                  {searchSuggestions.map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="search-result-item"
-                      onClick={() => handleSelectSuggestion(item)}
-                      title={item.address}
-                    >
-                      {item.address}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Checkbox to limit radius within 50 miles of Home */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-              <input
-                type="checkbox"
-                id="limit-to-local-checkbox"
-                checked={limitToLocal}
-                disabled={!homePlace}
-                onChange={(e) => setLimitToLocal(e.target.checked)}
-                style={{
-                  width: '14px',
-                  height: '14px',
-                  cursor: homePlace ? 'pointer' : 'not-allowed',
-                  accentColor: 'var(--primary)',
-                }}
-              />
-              <label
-                htmlFor="limit-to-local-checkbox"
-                style={{
-                  fontSize: '12px',
-                  color: homePlace ? 'var(--text-primary)' : 'var(--text-muted)',
-                  cursor: homePlace ? 'pointer' : 'not-allowed',
-                  fontWeight: 500,
-                }}
-                title={!homePlace ? 'Save a Home location first to enable this limit' : 'Limit to 50 miles of Home'}
-              >
-                Limit to 50 miles of Home {!homePlace && <span style={{ fontSize: '10px', color: 'var(--danger)' }}>(Requires Home)</span>}
-              </label>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Location Type</label>
-              <select
-                className="select-input"
-                value={placeType}
-                onChange={(e) => setPlaceType(e.target.value)}
-              >
-                <option value="other">Other / Stop</option>
-                <option value="home">🏠 Home (Special Location)</option>
-                <option value="office">🏢 Office (Special Location)</option>
-                <option value="exercise">💪 Exercise Spot</option>
-                <option value="activities">✨ Morgan's Activities</option>
-                <option value="shopping">🛍️ Shopping</option>
-                <option value="third_place">☕ Third Place</option>
-                <option value="eatery">🍽️ Eatery</option>
-              </select>
-            </div>
-
-            <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-              <button
-                type="submit"
-                className="button-primary"
-                disabled={searchLoading || !placeName.trim() || !placeAddress.trim()}
-                style={{ flex: 1 }}
-              >
-                {editingPlaceId ? <Sparkles size={16} /> : <Plus size={16} />}
-                {editingPlaceId ? 'Update Location' : 'Save Location'}
-              </button>
-              {editingPlaceId && (
-                <button
-                  type="button"
-                  className="button-secondary"
-                  onClick={handleCancelEdit}
-                  style={{ padding: '10px' }}
-                  title="Cancel edit"
-                >
-                  <X size={16} />
-                </button>
-              )}
-            </div>
-          </form>
-        </div>
-
-        {/* SAVED PLACES LIST */}
-        <div className="section-card">
-          <div className="section-title">
-            <h2>Saved Places ({places.length})</h2>
-          </div>
-
-          {places.length === 0 ? (
-            <div className="empty-state">
-              <MapPin size={24} />
-              <p>No places saved yet.</p>
-              <p style={{ fontSize: '11px' }}>Search above or click on the map to add places.</p>
-            </div>
-          ) : (
-            <div className="places-list">
-              {places.map((place) => {
-                const isSelectedInSandbox =
-                  activeMode === 'sandbox' && sandboxPoints.includes(place.id);
-                const isCurrentlyEditing = editingPlaceId === place.id;
-
-                return (
-                  <div key={place.id} className="place-card" style={{ borderColor: isCurrentlyEditing ? 'var(--primary)' : '' }}>
-                    <div className="place-card-left">
-                      <div
-                        className={`place-icon-badge ${place.type || 'other'}`}
-                      >
-                        {place.type === 'home' ? (
-                          <HomeIcon size={16} />
-                        ) : place.type === 'office' ? (
-                          <Building2 size={16} />
-                        ) : place.type === 'exercise' ? (
-                          <Dumbbell size={16} />
-                        ) : place.type === 'activities' ? (
-                          <Sparkles size={16} />
-                        ) : place.type === 'shopping' ? (
-                          <ShoppingBag size={16} />
-                        ) : place.type === 'third_place' ? (
-                          <Coffee size={16} />
-                        ) : place.type === 'eatery' ? (
-                          <Utensils size={16} />
-                        ) : (
-                          <MapPin size={16} />
-                        )}
-                      </div>
-                      <div className="place-info">
-                        <div className="place-name">
-                          {place.name}
-                          {place.type === 'home' && <span className="place-special-tag home">Home</span>}
-                          {place.type === 'office' && <span className="place-special-tag office">Office</span>}
-                          {place.type === 'exercise' && <span className="place-special-tag exercise">Exercise Spot</span>}
-                          {place.type === 'activities' && <span className="place-special-tag activities">Morgan's Activities</span>}
-                          {place.type === 'shopping' && <span className="place-special-tag shopping">Shopping</span>}
-                          {place.type === 'third_place' && <span className="place-special-tag third_place">Third Place</span>}
-                          {place.type === 'eatery' && <span className="place-special-tag eatery">Eatery</span>}
-                        </div>
-                        <div className="place-address" title={place.address}>
-                          {place.address}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="place-actions">
-                      {activeMode === 'schedule' ? (
-                        <button
-                          className="button-secondary"
-                          onClick={() => onAddStopToActiveDay(place)}
-                          style={{ padding: '6px 8px', fontSize: '11px' }}
-                          title="Add to today's schedule"
-                        >
-                          <Plus size={12} />
-                          Add
-                        </button>
-                      ) : (
-                        <button
-                          className={`button-secondary ${
-                            isSelectedInSandbox ? 'active' : ''
-                          }`}
-                          onClick={() => onToggleSandboxPoint(place.id)}
-                          style={{
-                            padding: '6px 8px',
-                            fontSize: '11px',
-                            borderColor: isSelectedInSandbox ? 'var(--info)' : '',
-                            color: isSelectedInSandbox ? 'var(--info)' : '',
-                            background: isSelectedInSandbox ? 'var(--info-glow)' : '',
-                          }}
-                          title="Toggle sandbox routing selection"
-                        >
-                          {isSelectedInSandbox ? 'Selected' : 'Select'}
-                        </button>
-                      )}
-                      
-                      {/* Edit Button */}
-                      <button
-                        className="button-secondary"
-                        onClick={() => handleStartEdit(place)}
-                        disabled={isCurrentlyEditing}
-                        style={{ padding: '6px', borderColor: isCurrentlyEditing ? 'var(--primary)' : '' }}
-                        title="Edit saved place"
-                      >
-                        <Edit size={12} />
-                      </button>
-
-                      {/* Delete Button */}
-                      <button
-                        className="button-danger"
-                        onClick={() => {
-                          if (
-                            confirm(
-                              `Are you sure you want to delete "${place.name}"? This will also remove it from all daily schedules.`
-                            )
-                          ) {
-                            if (isCurrentlyEditing) handleCancelEdit();
-                            onDeletePlace(place.id);
-                            onShowToast(`Deleted "${place.name}"`, 'info');
-                          }
-                        }}
-                        style={{ padding: '6px' }}
-                        title="Delete saved place"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* WEEKLY PLANNER PANEL */}
         {activeMode === 'schedule' && (
-          <div className="section-card">
-            <div className="section-title">
-              <h2>
-                <Calendar size={16} style={{ color: 'var(--primary)' }} />
-                Daily Road Maps
-              </h2>
-            </div>
-
-            {/* Days Tabs */}
-            <div className="days-tabs">
-              {DAYS_OF_WEEK.map((day) => (
-                <button
-                  key={day.key}
-                  className={`day-tab ${activeDay === day.key ? 'active' : ''}`}
-                  onClick={() => {
-                    setActiveDay(day.key);
-                    setShowDirections(false);
-                  }}
-                >
-                  {day.short}
-                </button>
-              ))}
-            </div>
-
-            {/* Departure Start Time & Copy Schedule HUD */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Clock size={14} style={{ color: 'var(--text-muted)' }} />
-                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>Leave:</span>
-                <input
-                  type="time"
-                  className="text-input"
-                  style={{ width: '85px', padding: '4px 6px', fontSize: '12px', height: '28px' }}
-                  value={startTime || '08:00'}
-                  onChange={(e) => onUpdateStartTime(e.target.value)}
-                />
-              </div>
-
-              {/* Copy Schedule Dropdown */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Copy size={13} style={{ color: 'var(--text-muted)' }} />
-                <select
-                  className="select-input"
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      if (activeDaySchedule.length > 0) {
-                        if (confirm(`Overwrite active schedule for ${getDayLabel(activeDay)} with the schedule from ${getDayLabel(e.target.value)}?`)) {
-                          onCopySchedule(e.target.value, activeDay);
-                        }
-                      } else {
-                        onCopySchedule(e.target.value, activeDay);
-                      }
-                      e.target.value = '';
-                    }
-                  }}
-                  defaultValue=""
-                  style={{
-                    width: '130px',
-                    fontSize: '11.5px',
-                    padding: '4px 24px 4px 8px',
-                    height: '28px',
-                    backgroundPosition: 'right 6px center',
-                    backgroundSize: '12px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <option value="" disabled>Copy from...</option>
-                  {DAYS_OF_WEEK
-                    .filter((day) => day.key !== activeDay)
-                    .map((day) => {
-                      const count = schedules?.[day.key]?.length || 0;
-                      return (
-                        <option key={day.key} value={day.key} disabled={count === 0}>
-                          {day.label} {count > 0 ? `(${count} stop${count === 1 ? '' : 's'})` : '(empty)'}
-                        </option>
-                      );
-                    })}
-                </select>
-              </div>
-            </div>
-
-            {/* Optimize Stop Sequence Button */}
-            {activeDaySchedule.length >= 4 && (
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={onOptimizeRoute}
-                style={{
-                  width: '100%',
-                  padding: '6px 12px',
-                  fontSize: '12px',
-                  color: 'var(--success)',
-                  borderColor: 'var(--success)',
-                  background: 'var(--success-glow)',
-                  marginBottom: '12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                }}
-                title="Optimize stop order to minimize distance"
-              >
-                <Sparkles size={12} />
-                Optimize Stop Sequence Order
-              </button>
-            )}
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {/* Quick Add Stop Selector */}
-              {places.length > 0 && (
-                <div className="form-group" style={{ margin: 0 }}>
-                  <select
-                    className="select-input"
-                    onChange={handleQuickAddStop}
-                    defaultValue=""
-                    style={{ fontSize: '13px', padding: '8px 12px' }}
-                  >
-                    <option value="" disabled>
-                      ➕ Add stop to schedule...
-                    </option>
-                    {places.map((place) => (
-                      <option key={place.id} value={place.id}>
-                        {place.name} ({
-                          place.type === 'home' ? 'Home'
-                          : place.type === 'office' ? 'Office'
-                          : place.type === 'exercise' ? 'Exercise Spot'
-                          : place.type === 'activities' ? "Morgan's Activities"
-                          : place.type === 'shopping' ? 'Shopping'
-                          : place.type === 'third_place' ? 'Third Place'
-                          : place.type === 'eatery' ? 'Eatery'
-                          : place.address.split(',')[0]
-                        })
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Stop Sequence Itinerary */}
-              <div className="schedule-stops-container">
-                {activeDaySchedule.length === 0 && !hasHome ? (
-                  <div className="empty-state">
-                    <Route size={24} />
-                    <p>No stops added for {getDayLabel(activeDay)}.</p>
-                    <p style={{ fontSize: '11px' }}>
-                      Click "Add" on saved places or use the dropdown above.
-                    </p>
-                  </div>
-                ) : (
-                  timeline.map((stop, index) => {
-                    const isFixed = stop.isHomeStart || stop.isHomeEnd;
-                    const scheduleIndex = isFixed ? -1 : activeDaySchedule.findIndex((s) => s.id === stop.stopId);
-
-                    return (
-                      <TimelineStopCard
-                        key={stop.stopId || `fixed-${index}`}
-                        stop={stop}
-                        index={index}
-                        isFixed={isFixed}
-                        scheduleIndex={scheduleIndex}
-                        activeDaySchedule={activeDaySchedule}
-                        timeline={timeline}
-                        onReorderStop={onReorderStop}
-                        onRemoveStopFromActiveDay={onRemoveStopFromActiveDay}
-                        onUpdateStayDuration={onUpdateStayDuration}
-                        draggedIndex={draggedIndex}
-                        dragOverIndex={dragOverIndex}
-                        handleDragStart={handleDragStart}
-                        handleDragOver={handleDragOver}
-                        handleDragEnd={handleDragEnd}
-                        handleDrop={handleDrop}
-                      />
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Route Statistics */}
-              {timeline.length >= 2 && activeRouteDetails && (
-                <>
-                  <div className="stats-summary">
-                    <div className="stat-item">
-                      <div className="stat-icon-wrapper">
-                        <Route size={16} />
-                      </div>
-                      <div>
-                        <div className="stat-label">Distance</div>
-                        <div className="stat-value">
-                          {activeRouteDetails.distance.toFixed(1)} mi
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="stat-item">
-                      <div className="stat-icon-wrapper">
-                        <Clock size={16} />
-                      </div>
-                      <div>
-                        <div className="stat-label">Driving Time</div>
-                        <div className="stat-value">
-                          {activeRouteDetails.duration < 60
-                            ? `${Math.round(activeRouteDetails.duration)} mins`
-                            : `${Math.floor(activeRouteDetails.duration / 60)}h ${Math.round(
-                                activeRouteDetails.duration % 60
-                              )}m`}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* External Actions */}
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                    <button
-                      type="button"
-                      className="button-primary"
-                      onClick={handleSendToGoogleMaps}
-                      style={{ flex: 1, padding: '8px 12px', fontSize: '12px' }}
-                    >
-                      <Navigation size={13} />
-                      Open Google Maps
-                    </button>
-                    <button
-                      type="button"
-                      className="button-secondary"
-                      onClick={handleCopySummary}
-                      style={{ padding: '8px 12px', fontSize: '12px' }}
-                      title="Copy itinerary details to clipboard"
-                    >
-                      <Copy size={13} />
-                    </button>
-                  </div>
-
-                  {/* Directions Toggle */}
-                  <div>
-                    <button
-                      className="directions-toggle"
-                      onClick={() => setShowDirections(!showDirections)}
-                    >
-                      <span>
-                        {showDirections ? 'Hide Step-by-Step Directions' : 'Show Step-by-Step Directions'}
-                      </span>
-                      {showDirections ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                    </button>
-
-                    {showDirections && activeRouteDetails.steps && (
-                      <div className="directions-list">
-                        {activeRouteDetails.steps.map((step, idx) => (
-                          <div key={idx} className="direction-step">
-                            <span className="direction-text">{step.instruction}</span>
-                            <span className="direction-meta">
-                              {step.distance.toFixed(2)} mi ({Math.round(step.duration * 2) / 2}m)
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
+          <CommuteProjectionsSection weeklyStats={weeklyStats} />
         )}
 
-        {/* COMMUTE PROJECTIONS */}
-        {activeMode === 'schedule' && (
-          <div className="section-card" style={{ marginTop: '4px' }}>
-            <div className="section-title">
-              <h2>
-                <Route size={16} style={{ color: 'var(--primary)' }} />
-                Commute Projections
-              </h2>
-            </div>
-            <div className="projection-toggle" aria-label="Projection range">
-              <button
-                type="button"
-                className={`projection-toggle-btn ${projectionMode === 'workdays' ? 'active' : ''}`}
-                onClick={() => setProjectionMode('workdays')}
-                aria-pressed={projectionMode === 'workdays'}
-              >
-                Workdays
-              </button>
-              <button
-                type="button"
-                className={`projection-toggle-btn ${projectionMode === 'full-week' ? 'active' : ''}`}
-                onClick={() => setProjectionMode('full-week')}
-                aria-pressed={projectionMode === 'full-week'}
-              >
-                Full Week
-              </button>
-            </div>
-            <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: '1.4' }}>
-              {projectionMode === 'workdays'
-                ? 'Driving mileage and time spent on workday commutes (Monday-Friday), accounting for 260 workdays per year.'
-                : 'Driving mileage and time spent across the full weekly routine, including Saturday and Sunday routes.'}
-            </p>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-              {/* Weekly Card */}
-              <div style={{
-                background: 'var(--bg-secondary)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '10px',
-                padding: '10px 6px',
-                textAlign: 'center',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '2px'
-              }}>
-                <div style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Weekly
-                </div>
-                <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
-                  {projectionDayCount} {projectionModeLabel}
-                </div>
-                <div style={{ fontSize: '13px', fontWeight: '750', color: 'var(--primary)', marginTop: '4px' }}>
-                  {projectionWeeklyDistance.toFixed(1)} mi
-                </div>
-                <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-primary)' }}>
-                  {formatDuration(projectionWeeklyDuration)}
-                </div>
-              </div>
-
-              {/* Monthly Card */}
-              <div style={{
-                background: 'var(--bg-secondary)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '10px',
-                padding: '10px 6px',
-                textAlign: 'center',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '2px'
-              }}>
-                <div style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Monthly
-                </div>
-                <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
-                  Avg. {((projectionDayCount * 52) / 12).toFixed(1)} {projectionModeLabel}
-                </div>
-                <div style={{ fontSize: '13px', fontWeight: '750', color: 'var(--primary)', marginTop: '4px' }}>
-                  {projectionMonthlyDistance.toFixed(1)} mi
-                </div>
-                <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-primary)' }}>
-                  {formatDuration(projectionMonthlyDuration)}
-                </div>
-              </div>
-
-              {/* Yearly Card */}
-              <div style={{
-                background: 'var(--bg-secondary)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '10px',
-                padding: '10px 6px',
-                textAlign: 'center',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '2px'
-              }}>
-                <div style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Yearly
-                </div>
-                <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
-                  {projectionDayCount * 52} {projectionModeLabel}
-                </div>
-                <div style={{ fontSize: '13px', fontWeight: '750', color: 'var(--primary)', marginTop: '4px' }}>
-                  {projectionYearlyDistance.toLocaleString(undefined, { maximumFractionDigits: 1 })} mi
-                </div>
-                <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-primary)' }}>
-                  {formatDuration(projectionYearlyDuration)}
-                </div>
-              </div>
-            </div>
-
-            {/* Fun Projection Stats */}
-            <div style={{
-              borderTop: '1.5px dashed var(--border-color)',
-              marginTop: '12px',
-              paddingTop: '12px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px'
-            }}>
-              <div style={{ fontSize: '11.5px', fontWeight: '700', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                🎧 Commute Entertainment (Yearly)
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginTop: '2px' }}>
-                {/* Audiobooks */}
-                <div style={{
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '8px',
-                  padding: '8px 4px',
-                  textAlign: 'center',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '2px'
-                }}>
-                  <span style={{ fontSize: '15px' }} title="Based on average audiobook length of 10 hours">📚</span>
-                  <span style={{ fontSize: '12.5px', fontWeight: '750', color: 'var(--primary)' }}>
-                    {Math.floor(projectionYearlyDuration / 600).toLocaleString()}
-                  </span>
-                  <span style={{ fontSize: '9.5px', color: 'var(--text-muted)', fontWeight: '500' }}>Audiobooks</span>
-                </div>
-
-                {/* Songs */}
-                <div style={{
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '8px',
-                  padding: '8px 4px',
-                  textAlign: 'center',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '2px'
-                }}>
-                  <span style={{ fontSize: '15px' }} title="Based on average song length of 3.5 minutes">🎵</span>
-                  <span style={{ fontSize: '12.5px', fontWeight: '750', color: 'var(--primary)' }}>
-                    {Math.floor(projectionYearlyDuration / 3.5).toLocaleString()}
-                  </span>
-                  <span style={{ fontSize: '9.5px', color: 'var(--text-muted)', fontWeight: '500' }}>Songs</span>
-                </div>
-
-                {/* Podcasts */}
-                <div style={{
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '8px',
-                  padding: '8px 4px',
-                  textAlign: 'center',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '2px'
-                }}>
-                  <span style={{ fontSize: '15px' }} title="Based on average podcast episode of 45 minutes">🎙️</span>
-                  <span style={{ fontSize: '12.5px', fontWeight: '750', color: 'var(--primary)' }}>
-                    {Math.floor(projectionYearlyDuration / 45).toLocaleString()}
-                  </span>
-                  <span style={{ fontSize: '9.5px', color: 'var(--text-muted)', fontWeight: '500' }}>Podcast Eps</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ROUTE SANDBOX PANEL */}
-        {activeMode === 'sandbox' && (
-          <div className="section-card">
-            <div className="section-title">
-              <h2>
-                <Route size={16} style={{ color: 'var(--info)' }} />
-                Ad-hoc Route Sandbox
-              </h2>
-              {sandboxPoints.length > 0 && (
-                <button
-                  className="button-secondary"
-                  onClick={onClearSandbox}
-                  style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--danger)' }}
-                >
-                  Clear Selection
-                </button>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                Select multiple saved places (by clicking "Select" next to them or clicking their markers on the map) to instantly calculate route distances.
-              </p>
-
-              {/* Selection point list order */}
-              <div className="sandbox-points-list">
-                {sandboxPoints.length === 0 ? (
-                  <div className="empty-state">
-                    <Route size={24} style={{ color: 'var(--info)' }} />
-                    <p>No places selected for sandbox routing.</p>
-                    <p style={{ fontSize: '11px' }}>
-                      Click markers on the map or select them from the list above.
-                    </p>
-                  </div>
-                ) : (
-                  sandboxPoints.map((placeId, index) => {
-                    const place = places.find((p) => p.id === placeId);
-                    if (!place) return null;
-
-                    return (
-                      <div key={placeId} className="sandbox-point-item">
-                        <div className="sandbox-point-info">
-                          <div
-                            className="stop-number"
-                            style={{ background: 'var(--info-glow)', color: 'var(--info)' }}
-                          >
-                            {index + 1}
-                          </div>
-                          <span>{place.name}</span>
-                        </div>
-                        <button
-                          className="stop-btn-arrow"
-                          onClick={() => onToggleSandboxPoint(placeId)}
-                          style={{ color: 'var(--danger)' }}
-                          title="Deselect"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Route Statistics */}
-              {sandboxPoints.length >= 2 && activeRouteDetails && (
-                <>
-                  <div className="stats-summary" style={{ borderColor: 'var(--border-color)' }}>
-                    <div className="stat-item">
-                      <div className="stat-icon-wrapper" style={{ color: 'var(--info)', background: 'var(--info-glow)' }}>
-                        <Route size={16} />
-                      </div>
-                      <div>
-                        <div className="stat-label">Sandbox Dist</div>
-                        <div className="stat-value" style={{ color: 'var(--info)' }}>
-                          {activeRouteDetails.distance.toFixed(1)} mi
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="stat-item">
-                      <div className="stat-icon-wrapper" style={{ color: 'var(--info)', background: 'var(--info-glow)' }}>
-                        <Clock size={16} />
-                      </div>
-                      <div>
-                        <div className="stat-label">Est. Driving</div>
-                        <div className="stat-value">
-                          {activeRouteDetails.duration < 60
-                            ? `${Math.round(activeRouteDetails.duration)} mins`
-                            : `${Math.floor(activeRouteDetails.duration / 60)}h ${Math.round(
-                                activeRouteDetails.duration % 60
-                              )}m`}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Directions toggle */}
-                  <div>
-                    <button
-                      className="directions-toggle"
-                      onClick={() => setShowDirections(!showDirections)}
-                    >
-                      <span>
-                        {showDirections ? 'Hide Step-by-Step Directions' : 'Show Step-by-Step Directions'}
-                      </span>
-                      {showDirections ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                    </button>
-
-                    {showDirections && activeRouteDetails.steps && (
-                      <div className="directions-list">
-                        {activeRouteDetails.steps.map((step, idx) => (
-                          <div key={idx} className="direction-step">
-                            <span className="direction-text">{step.instruction}</span>
-                            <span className="direction-meta">
-                              {step.distance.toFixed(2)} mi ({Math.round(step.duration * 2) / 2}m)
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* BACKUP & SETTINGS CARD */}
-        <div className="section-card" style={{ marginTop: '4px' }}>
-          <div className="section-title">
-            <h2>
-              <Settings size={16} style={{ color: 'var(--text-secondary)' }} />
-              Backup & Settings
-            </h2>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-              Save your frequent places and daily commute schedules, or restore them from a backup.
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '4px' }}>
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={onExportConfig}
-                title="Export configuration as JSON file"
-                style={{ fontSize: '12px', padding: '8px 10px' }}
-              >
-                <Download size={14} />
-                Export
-              </button>
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={handleImportClick}
-                title="Import configuration JSON file"
-                style={{ fontSize: '12px', padding: '8px 10px' }}
-              >
-                <Upload size={14} />
-                Import
-              </button>
-            </div>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              accept=".json"
-              style={{ display: 'none' }}
-            />
-          </div>
-        </div>
+        <SettingsSection
+          fileInputRef={fileInputRef}
+          onExportConfig={onExportConfig}
+          onImportClick={handleImportClick}
+          onFileChange={handleFileChange}
+        />
       </div>
     </div>
   );
