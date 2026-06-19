@@ -373,6 +373,32 @@ function ModeSwitch({ activeMode, onModeChange }) {
   );
 }
 
+function MobileSheetHandle({ state, summary, onCycle }) {
+  const stateLabel =
+    state === 'peek' ? 'peek' : state === 'half' ? 'half open' : 'fully open';
+
+  return (
+    <div className="mobile-sheet-handle-row">
+      <button
+        type="button"
+        className="mobile-sheet-handle"
+        onClick={onCycle}
+        aria-label={`Planner sheet is ${stateLabel}. Tap to change sheet size.`}
+        aria-expanded={state !== 'peek'}
+      >
+        <span className="mobile-sheet-grip" aria-hidden="true" />
+        <span className="mobile-sheet-summary">
+          <span className="mobile-sheet-title">{summary.title}</span>
+          <span className="mobile-sheet-meta">{summary.meta}</span>
+        </span>
+        <span className="mobile-sheet-state-icon" aria-hidden="true">
+          {state === 'full' ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+        </span>
+      </button>
+    </div>
+  );
+}
+
 function SavedPlacesTray({
   places,
   activeMode,
@@ -1297,6 +1323,10 @@ export default function Sidebar({
   onImportConfig,
   onShowToast,
   onOpenDashboard,
+  mobileSheetState = 'peek',
+  onMobileSheetStateChange,
+  onCycleMobileSheet = () => {},
+  mobileSheetSummary = { title: 'Planner', meta: 'Route controls' },
 }) {
   // Add/Edit Place Form State
   const [placeName, setPlaceName] = useState('');
@@ -1611,6 +1641,12 @@ export default function Sidebar({
     setIsPlaceFormOpen((prev) => !prev);
   };
 
+  const handleModeChange = (mode) => {
+    setActiveMode(mode);
+    setShowDirections(false);
+    onMobileSheetStateChange?.('half');
+  };
+
   // Add or Edit Place Submit
   const handleAddPlaceSubmit = async (e) => {
     e.preventDefault();
@@ -1680,7 +1716,13 @@ export default function Sidebar({
   };
 
   return (
-    <div className="sidebar">
+    <div className={cx('sidebar', `mobile-sheet-${mobileSheetState || 'peek'}`)}>
+      <MobileSheetHandle
+        state={mobileSheetState || 'peek'}
+        summary={mobileSheetSummary}
+        onCycle={onCycleMobileSheet}
+      />
+
       <SidebarHeader
         theme={theme}
         onToggleTheme={onToggleTheme}
@@ -1690,10 +1732,7 @@ export default function Sidebar({
       <div className="sidebar-scrollable">
         <ModeSwitch
           activeMode={activeMode}
-          onModeChange={(mode) => {
-            setActiveMode(mode);
-            setShowDirections(false);
-          }}
+          onModeChange={handleModeChange}
         />
 
         {activeMode === 'schedule' ? (

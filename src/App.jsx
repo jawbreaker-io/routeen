@@ -28,6 +28,16 @@ const createSeedSchedules = () => ({
 
 const createSeedStartTimes = () => createDayMap((day) => day.defaultStartTime);
 const createEmptyWeeklyStats = () => createDayMap(() => ({ distance: 0, duration: 0 }));
+const MOBILE_SHEET_STATES = ['peek', 'half', 'full'];
+
+function formatRouteDuration(minutes) {
+  if (!Number.isFinite(minutes)) return null;
+  if (minutes < 60) return `${Math.round(minutes)} min`;
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = Math.round(minutes % 60);
+  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+}
 
 function normalizeSchedules(value, fallbackFactory = createEmptySchedules) {
   const source = value && typeof value === 'object' ? value : {};
@@ -144,6 +154,7 @@ export default function App() {
   const [activeMode, setActiveMode] = useState('schedule');
   const [activeDay, setActiveDay] = useState('monday');
   const [sandboxPoints, setSandboxPoints] = useState([]);
+  const [mobileSheetState, setMobileSheetState] = useState('peek');
 
   // Calculated Route Details
   const [routeGeometry, setRouteGeometry] = useState(null);
@@ -709,8 +720,36 @@ export default function App() {
     };
   }, [schedules, places]);
 
+  const handleCycleMobileSheet = () => {
+    setMobileSheetState((currentState) => {
+      const currentIndex = MOBILE_SHEET_STATES.indexOf(currentState);
+      return MOBILE_SHEET_STATES[(currentIndex + 1) % MOBILE_SHEET_STATES.length];
+    });
+  };
+
+  const mobileSheetSummary = (() => {
+    const activeCount =
+      activeMode === 'schedule' ? (schedules[activeDay] || []).length : sandboxPoints.length;
+    const countLabel =
+      activeMode === 'schedule'
+        ? `${activeCount} stop${activeCount === 1 ? '' : 's'}`
+        : `${activeCount} point${activeCount === 1 ? '' : 's'}`;
+    const title =
+      activeMode === 'schedule' ? `${getDayLabel(activeDay)} planner` : 'Route sandbox';
+    const routeMetrics = routeDetails
+      ? [`${routeDetails.distance.toFixed(1)} mi`, formatRouteDuration(routeDetails.duration)]
+      : routeLoading
+        ? ['Calculating route']
+        : [];
+
+    return {
+      title,
+      meta: [...routeMetrics.filter(Boolean), countLabel].join(' / '),
+    };
+  })();
+
   return (
-    <div className="dashboard-container">
+    <div className={`dashboard-container mobile-sheet-${mobileSheetState}`}>
       {/* Toast Notification */}
       {toast.visible && (
         <div className="toast-container">
@@ -756,6 +795,10 @@ export default function App() {
         onImportConfig={handleImportConfig}
         onShowToast={showToast}
         onOpenDashboard={() => setShowDashboard(true)}
+        mobileSheetState={mobileSheetState}
+        onMobileSheetStateChange={setMobileSheetState}
+        onCycleMobileSheet={handleCycleMobileSheet}
+        mobileSheetSummary={mobileSheetSummary}
       />
 
       {/* Map Content Viewport */}
