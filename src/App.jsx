@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import MapContainer from './components/MapContainer';
 import DashboardModal from './components/DashboardModal';
+import { DAY_KEYS, createDayMap, getDayLabel, getDefaultStartTime } from './constants/days';
 import { getRoute } from './services/mapService';
 
 const SEED_PLACES = [
@@ -11,31 +12,38 @@ const SEED_PLACES = [
   { id: 'p4', name: 'Whole Foods Market', type: 'shopping', address: '2300 16th St, San Francisco, CA 94103', lat: 37.7663, lng: -122.4093 }
 ];
 
-const SEED_SCHEDULES = {
-  monday: [
-    { id: 's1', placeId: 'p1', stayDuration: 0 },
-    { id: 's2', placeId: 'p2', stayDuration: 480 },
-    { id: 's3', placeId: 'p3', stayDuration: 60 },
-    { id: 's4', placeId: 'p4', stayDuration: 30 },
-    { id: 's5', placeId: 'p1', stayDuration: 0 }
-  ],
-  tuesday: [],
-  wednesday: [],
-  thursday: [],
-  friday: [],
-  saturday: [],
-  sunday: []
-};
+const MONDAY_SEED_STOPS = [
+  { id: 's1', placeId: 'p1', stayDuration: 0 },
+  { id: 's2', placeId: 'p2', stayDuration: 480 },
+  { id: 's3', placeId: 'p3', stayDuration: 60 },
+  { id: 's4', placeId: 'p4', stayDuration: 30 },
+  { id: 's5', placeId: 'p1', stayDuration: 0 },
+];
 
-const SEED_START_TIMES = {
-  monday: '08:00',
-  tuesday: '08:00',
-  wednesday: '08:00',
-  thursday: '08:00',
-  friday: '08:00',
-  saturday: '09:00',
-  sunday: '09:00'
-};
+const createEmptySchedules = () => createDayMap(() => []);
+const createSeedSchedules = () => ({
+  ...createEmptySchedules(),
+  monday: MONDAY_SEED_STOPS.map((stop) => ({ ...stop })),
+});
+
+const createSeedStartTimes = () => createDayMap((day) => day.defaultStartTime);
+const createEmptyWeeklyStats = () => createDayMap(() => ({ distance: 0, duration: 0 }));
+
+function normalizeSchedules(value, fallbackFactory = createEmptySchedules) {
+  const source = value && typeof value === 'object' ? value : {};
+  const fallback = fallbackFactory();
+  return createDayMap((day) => {
+    const daySchedule = source[day.key];
+    return Array.isArray(daySchedule) ? daySchedule : fallback[day.key];
+  });
+}
+
+function normalizeStartTimes(value) {
+  const source = value && typeof value === 'object' ? value : {};
+  return createDayMap((day) =>
+    typeof source[day.key] === 'string' && source[day.key] ? source[day.key] : day.defaultStartTime
+  );
+}
 
 function haversineDistance(c1, c2) {
   const R = 3958.8;
@@ -114,12 +122,22 @@ export default function App() {
 
   const [schedules, setSchedules] = useState(() => {
     const saved = localStorage.getItem('cw_schedules_v2');
-    return saved ? JSON.parse(saved) : SEED_SCHEDULES;
+    if (!saved) return createSeedSchedules();
+    try {
+      return normalizeSchedules(JSON.parse(saved));
+    } catch {
+      return createSeedSchedules();
+    }
   });
 
   const [startTimes, setStartTimes] = useState(() => {
     const saved = localStorage.getItem('cw_start_times');
-    return saved ? JSON.parse(saved) : SEED_START_TIMES;
+    if (!saved) return createSeedStartTimes();
+    try {
+      return normalizeStartTimes(JSON.parse(saved));
+    } catch {
+      return createSeedStartTimes();
+    }
   });
 
   // App Modes and Selections
@@ -138,16 +156,7 @@ export default function App() {
   // Cache for routing coordinates
   const routeCacheRef = useRef({});
 
-  // Workday commute stats (Monday - Sunday)
-  const [weeklyStats, setWeeklyStats] = useState({
-    monday: { distance: 0, duration: 0 },
-    tuesday: { distance: 0, duration: 0 },
-    wednesday: { distance: 0, duration: 0 },
-    thursday: { distance: 0, duration: 0 },
-    friday: { distance: 0, duration: 0 },
-    saturday: { distance: 0, duration: 0 },
-    sunday: { distance: 0, duration: 0 }
-  });
+  const [weeklyStats, setWeeklyStats] = useState(createEmptyWeeklyStats);
 
   const [showDashboard, setShowDashboard] = useState(false);
 
@@ -238,7 +247,7 @@ export default function App() {
 
     setSchedules((prev) => {
       const currentDaySchedule = prev[activeDay] || [];
-      showToast(`Added "${place.name}" to ${activeDay.charAt(0).toUpperCase() + activeDay.slice(1)}`, 'success');
+      showToast(`Added "${place.name}" to ${getDayLabel(activeDay)}`, 'success');
       return {
         ...prev,
         [activeDay]: [...currentDaySchedule, newStop],
@@ -297,7 +306,7 @@ export default function App() {
   const handleCopySchedule = (fromDay, toDay) => {
     const sourceStops = schedules[fromDay] || [];
     if (sourceStops.length === 0) {
-      showToast(`${fromDay.charAt(0).toUpperCase() + fromDay.slice(1)} has an empty schedule to copy.`, 'error');
+      showToast(`${getDayLabel(fromDay)} has an empty schedule to copy.`, 'error');
       return;
     }
 
@@ -313,14 +322,14 @@ export default function App() {
     });
 
     setStartTimes((prev) => {
-      const sourceTime = prev[fromDay] || '08:00';
+      const sourceTime = prev[fromDay] || getDefaultStartTime(fromDay);
       return {
         ...prev,
         [toDay]: sourceTime,
       };
     });
 
-    showToast(`Copied ${fromDay.charAt(0).toUpperCase() + fromDay.slice(1)}'s schedule to ${toDay.charAt(0).toUpperCase() + toDay.slice(1)}!`, 'success');
+    showToast(`Copied ${getDayLabel(fromDay)}'s schedule to ${getDayLabel(toDay)}!`, 'success');
   };
 
   const handleOptimizeRoute = () => {
@@ -418,8 +427,8 @@ export default function App() {
   // Import JSON configuration file
   const handleImportConfig = (config) => {
     if (config.places) setPlaces(config.places);
-    if (config.schedules) setSchedules(config.schedules);
-    if (config.startTimes) setStartTimes(config.startTimes);
+    if (config.schedules) setSchedules(normalizeSchedules(config.schedules));
+    if (config.startTimes) setStartTimes(normalizeStartTimes(config.startTimes));
     if (config.theme) setTheme(config.theme);
   };
 
@@ -440,7 +449,7 @@ export default function App() {
         setRouteGeometry(null);
         setRouteDetails(null);
         if (homePlace) {
-          const startTimeStr = startTimes[activeDay] || '08:00';
+          const startTimeStr = startTimes[activeDay] || getDefaultStartTime(activeDay);
           const [startH, startM] = startTimeStr.split(':').map(Number);
           const currentMinutes = startH * 60 + startM;
           setTimeline([
@@ -544,7 +553,7 @@ export default function App() {
           });
 
           if (activeMode === 'schedule') {
-            const startTimeStr = startTimes[activeDay] || '08:00';
+            const startTimeStr = startTimes[activeDay] || getDefaultStartTime(activeDay);
             const [startH, startM] = startTimeStr.split(':').map(Number);
             let currentMinutes = startH * 60 + startM;
 
@@ -616,15 +625,14 @@ export default function App() {
     };
   }, [activeMode, activeDay, schedules, startTimes, sandboxPoints, places]);
 
-  // Calculate background stats for all workday schedules (Monday - Friday) for projections
+  // Calculate background stats for every planner day.
   useEffect(() => {
     let isSubscribed = true;
     
     const calculateAllStats = async () => {
-      const workdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
       const statsUpdates = {};
 
-      const promises = workdays.map(async (day) => {
+      const promises = DAY_KEYS.map(async (day) => {
         const dayStops = schedules[day] || [];
         const homePlace = places.find((p) => p.type === 'home');
 
@@ -681,10 +689,10 @@ export default function App() {
 
       if (isSubscribed) {
         setWeeklyStats((prev) => {
-          const changed = workdays.some(
+          const changed = DAY_KEYS.some(
             (day) =>
-              prev[day].distance !== statsUpdates[day].distance ||
-              prev[day].duration !== statsUpdates[day].duration
+              (prev[day]?.distance || 0) !== statsUpdates[day].distance ||
+              (prev[day]?.duration || 0) !== statsUpdates[day].duration
           );
           return changed ? { ...prev, ...statsUpdates } : prev;
         });

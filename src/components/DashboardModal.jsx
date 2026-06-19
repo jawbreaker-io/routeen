@@ -1,9 +1,7 @@
 import { useState } from 'react';
 import {
   X,
-  Calendar,
   Route,
-  Clock,
   Dumbbell,
   ShoppingBag,
   Coffee,
@@ -16,6 +14,7 @@ import {
   Sparkles,
   Download,
 } from 'lucide-react';
+import { DAYS_OF_WEEK } from '../constants/days';
 
 export default function DashboardModal({
   isOpen,
@@ -28,15 +27,7 @@ export default function DashboardModal({
 
   if (!isOpen) return null;
 
-  const daysOfWeek = [
-    { key: 'monday', label: 'Monday', short: 'Mon' },
-    { key: 'tuesday', label: 'Tuesday', short: 'Tue' },
-    { key: 'wednesday', label: 'Wednesday', short: 'Wed' },
-    { key: 'thursday', label: 'Thursday', short: 'Thu' },
-    { key: 'friday', label: 'Friday', short: 'Fri' },
-    { key: 'saturday', label: 'Saturday', short: 'Sat' },
-    { key: 'sunday', label: 'Sunday', short: 'Sun' },
-  ];
+  const daysOfWeek = DAYS_OF_WEEK;
 
   // Helper to format duration to human-readable format
   const formatDuration = (mins) => {
@@ -93,7 +84,6 @@ export default function DashboardModal({
   });
 
   const avgDailyDistance = activeDaysCount > 0 ? totalDistance / activeDaysCount : 0;
-  const avgDailyDuration = activeDaysCount > 0 ? totalDuration / activeDaysCount : 0;
 
   // 2. Location Summary Calculations
   const locationStats = places.map((place) => {
@@ -126,7 +116,6 @@ export default function DashboardModal({
   });
 
   const maxTotalStayTime = Math.max(...locationStats.map((l) => l.totalStayTime), 1);
-  const maxVisitsCount = Math.max(...locationStats.map((l) => l.visitCount), 1);
 
   // SVG Chart Dimensions
   const chartHeight = 140;

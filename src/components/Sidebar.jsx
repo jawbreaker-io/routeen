@@ -31,7 +31,9 @@ import {
   Utensils,
   BarChart3,
 } from 'lucide-react';
+import { DAYS_OF_WEEK, WORKDAY_DAYS, getDayLabel } from '../constants/days';
 import { geocodeAddress } from '../services/mapService';
+
 // Helper to format minutes to standard AM/PM time
 const formatTime = (minutes) => {
   if (isNaN(minutes)) return '--:--';
@@ -42,6 +44,17 @@ const formatTime = (minutes) => {
   const displayM = m < 10 ? `0${m}` : m;
   return `${displayH}:${displayM} ${ampm}`;
 };
+
+const formatDuration = (mins) => {
+  if (mins === 0) return '0 mins';
+  const hrs = Math.floor(mins / 60);
+  const m = Math.round(mins % 60);
+  if (hrs === 0) return `${m}m`;
+  return m > 0 ? `${hrs}h ${m}m` : `${hrs}h`;
+};
+
+const sumWeeklyStats = (weeklyStats, days, field) =>
+  days.reduce((sum, day) => sum + (weeklyStats?.[day.key]?.[field] || 0), 0);
 
 // Subcomponent for each timeline item to prevent input jumping/cursor issues
 function TimelineStopCard({
@@ -394,6 +407,7 @@ export default function Sidebar({
 
   // Directions Expand State
   const [showDirections, setShowDirections] = useState(false);
+  const [projectionMode, setProjectionMode] = useState('workdays');
 
   // Find if Home location exists
   const homePlace = places.find((p) => p.type === 'home');
@@ -680,13 +694,15 @@ export default function Sidebar({
     e.target.value = '';
   };
 
-  const daysOfWeek = [
-    { key: 'monday', label: 'Mon' },
-    { key: 'tuesday', label: 'Tue' },
-    { key: 'wednesday', label: 'Wed' },
-    { key: 'thursday', label: 'Thu' },
-    { key: 'friday', label: 'Fri' },
-  ];
+  const projectionDays = projectionMode === 'workdays' ? WORKDAY_DAYS : DAYS_OF_WEEK;
+  const projectionWeeklyDistance = sumWeeklyStats(weeklyStats, projectionDays, 'distance');
+  const projectionWeeklyDuration = sumWeeklyStats(weeklyStats, projectionDays, 'duration');
+  const projectionMonthlyDistance = projectionWeeklyDistance * (52 / 12);
+  const projectionMonthlyDuration = projectionWeeklyDuration * (52 / 12);
+  const projectionYearlyDistance = projectionWeeklyDistance * 52;
+  const projectionYearlyDuration = projectionWeeklyDuration * 52;
+  const projectionDayCount = projectionDays.length;
+  const projectionModeLabel = projectionMode === 'workdays' ? 'workdays' : 'days';
 
   return (
     <div className="sidebar">
@@ -913,8 +929,6 @@ export default function Sidebar({
           ) : (
             <div className="places-list">
               {places.map((place) => {
-                const isHome = place.type === 'home';
-                const isOffice = place.type === 'office';
                 const isSelectedInSandbox =
                   activeMode === 'sandbox' && sandboxPoints.includes(place.id);
                 const isCurrentlyEditing = editingPlaceId === place.id;
@@ -1040,7 +1054,7 @@ export default function Sidebar({
 
             {/* Days Tabs */}
             <div className="days-tabs">
-              {daysOfWeek.map((day) => (
+              {DAYS_OF_WEEK.map((day) => (
                 <button
                   key={day.key}
                   className={`day-tab ${activeDay === day.key ? 'active' : ''}`}
@@ -1049,7 +1063,7 @@ export default function Sidebar({
                     setShowDirections(false);
                   }}
                 >
-                  {day.label}
+                  {day.short}
                 </button>
               ))}
             </div>
@@ -1076,7 +1090,7 @@ export default function Sidebar({
                   onChange={(e) => {
                     if (e.target.value) {
                       if (activeDaySchedule.length > 0) {
-                        if (confirm(`Overwrite active schedule for ${activeDay.charAt(0).toUpperCase() + activeDay.slice(1)} with the schedule from ${e.target.value.charAt(0).toUpperCase() + e.target.value.slice(1)}?`)) {
+                        if (confirm(`Overwrite active schedule for ${getDayLabel(activeDay)} with the schedule from ${getDayLabel(e.target.value)}?`)) {
                           onCopySchedule(e.target.value, activeDay);
                         }
                       } else {
@@ -1097,7 +1111,7 @@ export default function Sidebar({
                   }}
                 >
                   <option value="" disabled>Copy from...</option>
-                  {daysOfWeek
+                  {DAYS_OF_WEEK
                     .filter((day) => day.key !== activeDay)
                     .map((day) => {
                       const count = schedules?.[day.key]?.length || 0;
@@ -1173,7 +1187,7 @@ export default function Sidebar({
                 {activeDaySchedule.length === 0 && !hasHome ? (
                   <div className="empty-state">
                     <Route size={24} />
-                    <p>No stops added for {activeDay.charAt(0).toUpperCase() + activeDay.slice(1)}.</p>
+                    <p>No stops added for {getDayLabel(activeDay)}.</p>
                     <p style={{ fontSize: '11px' }}>
                       Click "Add" on saved places or use the dropdown above.
                     </p>
@@ -1293,17 +1307,37 @@ export default function Sidebar({
           </div>
         )}
 
-        {/* WORKDAY COMMUTE PROJECTIONS */}
+        {/* COMMUTE PROJECTIONS */}
         {activeMode === 'schedule' && (
           <div className="section-card" style={{ marginTop: '4px' }}>
             <div className="section-title">
               <h2>
                 <Route size={16} style={{ color: 'var(--primary)' }} />
-                Workday Projections
+                Commute Projections
               </h2>
             </div>
+            <div className="projection-toggle" aria-label="Projection range">
+              <button
+                type="button"
+                className={`projection-toggle-btn ${projectionMode === 'workdays' ? 'active' : ''}`}
+                onClick={() => setProjectionMode('workdays')}
+                aria-pressed={projectionMode === 'workdays'}
+              >
+                Workdays
+              </button>
+              <button
+                type="button"
+                className={`projection-toggle-btn ${projectionMode === 'full-week' ? 'active' : ''}`}
+                onClick={() => setProjectionMode('full-week')}
+                aria-pressed={projectionMode === 'full-week'}
+              >
+                Full Week
+              </button>
+            </div>
             <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: '1.4' }}>
-              Driving mileage and time spent on workday commutes (Monday–Friday) only, accounting for the 260 workdays per year.
+              {projectionMode === 'workdays'
+                ? 'Driving mileage and time spent on workday commutes (Monday-Friday), accounting for 260 workdays per year.'
+                : 'Driving mileage and time spent across the full weekly routine, including Saturday and Sunday routes.'}
             </p>
             
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
@@ -1322,27 +1356,13 @@ export default function Sidebar({
                   Weekly
                 </div>
                 <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
-                  5 workdays
+                  {projectionDayCount} {projectionModeLabel}
                 </div>
                 <div style={{ fontSize: '13px', fontWeight: '750', color: 'var(--primary)', marginTop: '4px' }}>
-                  {(() => {
-                    const total = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
-                      .reduce((sum, d) => sum + (weeklyStats?.[d]?.distance || 0), 0);
-                    return total.toFixed(1);
-                  })()} mi
+                  {projectionWeeklyDistance.toFixed(1)} mi
                 </div>
                 <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-primary)' }}>
-                  {(() => {
-                    const total = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
-                      .reduce((sum, d) => sum + (weeklyStats?.[d]?.duration || 0), 0);
-                    
-                    const hours = total / 60;
-                    if (hours === 0) return '0 mins';
-                    if (hours < 1) return `${Math.round(total)}m`;
-                    const displayH = Math.floor(hours);
-                    const displayM = Math.round((hours - displayH) * 60);
-                    return displayM > 0 ? `${displayH}h ${displayM}m` : `${displayH}h`;
-                  })()}
+                  {formatDuration(projectionWeeklyDuration)}
                 </div>
               </div>
 
@@ -1361,27 +1381,13 @@ export default function Sidebar({
                   Monthly
                 </div>
                 <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
-                  Avg. 21.7 days
+                  Avg. {((projectionDayCount * 52) / 12).toFixed(1)} {projectionModeLabel}
                 </div>
                 <div style={{ fontSize: '13px', fontWeight: '750', color: 'var(--primary)', marginTop: '4px' }}>
-                  {(() => {
-                    const total = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
-                      .reduce((sum, d) => sum + (weeklyStats?.[d]?.distance || 0), 0) * (52 / 12);
-                    return total.toFixed(1);
-                  })()} mi
+                  {projectionMonthlyDistance.toFixed(1)} mi
                 </div>
                 <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-primary)' }}>
-                  {(() => {
-                    const total = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
-                      .reduce((sum, d) => sum + (weeklyStats?.[d]?.duration || 0), 0) * (52 / 12);
-                    
-                    const hours = total / 60;
-                    if (hours === 0) return '0 mins';
-                    if (hours < 1) return `${Math.round(total)}m`;
-                    const displayH = Math.floor(hours);
-                    const displayM = Math.round((hours - displayH) * 60);
-                    return displayM > 0 ? `${displayH}h ${displayM}m` : `${displayH}h`;
-                  })()}
+                  {formatDuration(projectionMonthlyDuration)}
                 </div>
               </div>
 
@@ -1400,27 +1406,13 @@ export default function Sidebar({
                   Yearly
                 </div>
                 <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
-                  260 workdays
+                  {projectionDayCount * 52} {projectionModeLabel}
                 </div>
                 <div style={{ fontSize: '13px', fontWeight: '750', color: 'var(--primary)', marginTop: '4px' }}>
-                  {(() => {
-                    const total = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
-                      .reduce((sum, d) => sum + (weeklyStats?.[d]?.distance || 0), 0) * 52;
-                    return total.toLocaleString(undefined, { maximumFractionDigits: 1 });
-                  })()} mi
+                  {projectionYearlyDistance.toLocaleString(undefined, { maximumFractionDigits: 1 })} mi
                 </div>
                 <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-primary)' }}>
-                  {(() => {
-                    const total = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
-                      .reduce((sum, d) => sum + (weeklyStats?.[d]?.duration || 0), 0) * 52;
-                    
-                    const hours = total / 60;
-                    if (hours === 0) return '0 mins';
-                    if (hours < 1) return `${Math.round(total)}m`;
-                    const displayH = Math.floor(hours);
-                    const displayM = Math.round((hours - displayH) * 60);
-                    return displayM > 0 ? `${displayH}h ${displayM}m` : `${displayH}h`;
-                  })()}
+                  {formatDuration(projectionYearlyDuration)}
                 </div>
               </div>
             </div>
@@ -1453,11 +1445,7 @@ export default function Sidebar({
                 }}>
                   <span style={{ fontSize: '15px' }} title="Based on average audiobook length of 10 hours">📚</span>
                   <span style={{ fontSize: '12.5px', fontWeight: '750', color: 'var(--primary)' }}>
-                    {(() => {
-                      const totalMin = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
-                        .reduce((sum, d) => sum + (weeklyStats?.[d]?.duration || 0), 0) * 52;
-                      return Math.floor(totalMin / 600).toLocaleString(); // 10h = 600m
-                    })()}
+                    {Math.floor(projectionYearlyDuration / 600).toLocaleString()}
                   </span>
                   <span style={{ fontSize: '9.5px', color: 'var(--text-muted)', fontWeight: '500' }}>Audiobooks</span>
                 </div>
@@ -1477,11 +1465,7 @@ export default function Sidebar({
                 }}>
                   <span style={{ fontSize: '15px' }} title="Based on average song length of 3.5 minutes">🎵</span>
                   <span style={{ fontSize: '12.5px', fontWeight: '750', color: 'var(--primary)' }}>
-                    {(() => {
-                      const totalMin = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
-                        .reduce((sum, d) => sum + (weeklyStats?.[d]?.duration || 0), 0) * 52;
-                      return Math.floor(totalMin / 3.5);
-                    })().toLocaleString()}
+                    {Math.floor(projectionYearlyDuration / 3.5).toLocaleString()}
                   </span>
                   <span style={{ fontSize: '9.5px', color: 'var(--text-muted)', fontWeight: '500' }}>Songs</span>
                 </div>
@@ -1501,11 +1485,7 @@ export default function Sidebar({
                 }}>
                   <span style={{ fontSize: '15px' }} title="Based on average podcast episode of 45 minutes">🎙️</span>
                   <span style={{ fontSize: '12.5px', fontWeight: '750', color: 'var(--primary)' }}>
-                    {(() => {
-                      const totalMin = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
-                        .reduce((sum, d) => sum + (weeklyStats?.[d]?.duration || 0), 0) * 52;
-                      return Math.floor(totalMin / 45).toLocaleString(); // 45m per episode
-                    })()}
+                    {Math.floor(projectionYearlyDuration / 45).toLocaleString()}
                   </span>
                   <span style={{ fontSize: '9.5px', color: 'var(--text-muted)', fontWeight: '500' }}>Podcast Eps</span>
                 </div>

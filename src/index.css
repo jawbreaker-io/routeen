@@ -780,7 +780,7 @@ p {
 /* Days of Week Tabs */
 .days-tabs {
   display: flex;
-  gap: 4px;
+  gap: 3px;
   overflow-x: auto;
   padding-bottom: 6px;
   margin-bottom: 12px;
@@ -789,7 +789,7 @@ p {
 
 .day-tab {
   flex: 1;
-  min-width: 44px;
+  min-width: 38px;
   padding: 8px 4px;
   border: none;
   background: var(--bg-secondary);
@@ -812,6 +812,40 @@ p {
   background: var(--primary-glow);
   color: var(--primary);
   border-color: var(--primary);
+}
+
+.projection-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 12px;
+}
+
+.projection-toggle-btn {
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 10px;
+  transition: all 0.2s ease;
+}
+
+.projection-toggle-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.projection-toggle-btn.active {
+  background: var(--primary);
+  color: white;
+  box-shadow: var(--shadow-sm);
 }
 
 /* Schedule stops list */
@@ -1778,4 +1812,3 @@ p {
   from { transform: scale(0.95); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
-
