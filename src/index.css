@@ -2161,20 +2161,27 @@ input[type='number']::-webkit-inner-spin-button {
     bottom: 0;
     top: auto;
     width: auto;
-    height: 84vh;
     border-radius: 26px 26px 0 0;
     box-shadow: 0 -12px 44px rgba(2, 27, 52, 0.3);
     z-index: 800;
-    transition: transform 0.36s var(--ease-pop);
+    overflow: hidden;
+    padding-bottom: env(safe-area-inset-bottom);
+    transition: height 0.36s var(--ease-pop);
   }
+  /* Height-based snap states so peek fully collapses to just the handle. */
   .sidebar.mobile-sheet-peek {
-    transform: translateY(calc(84vh - 168px));
+    height: calc(58px + env(safe-area-inset-bottom));
   }
   .sidebar.mobile-sheet-half {
-    transform: translateY(44vh);
+    height: min(56dvh, 560px);
   }
   .sidebar.mobile-sheet-full {
-    transform: translateY(0);
+    height: calc(100dvh - 72px);
+  }
+
+  /* On mobile the cyan sidebar header is replaced by the floating top bar. */
+  .sidebar-header {
+    display: none;
   }
 
   .mobile-sheet-handle-row {
@@ -2228,7 +2235,7 @@ input[type='number']::-webkit-inner-spin-button {
     display: flex;
   }
 
-  .sidebar.mobile-sheet-peek .sidebar-header,
+  /* Peek shows only the drag handle. */
   .sidebar.mobile-sheet-peek .sidebar-scrollable {
     display: none;
   }
