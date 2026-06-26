@@ -319,6 +319,9 @@ input[type='number']::-webkit-inner-spin-button {
   min-width: 0;
   overflow: hidden;
   background: var(--rt-map);
+  /* Own stacking context so Leaflet's controls (z-index:1000) stay below the
+     sidebar/bottom-sheet instead of painting over it. */
+  z-index: 0;
 }
 
 .mobile-sheet-handle-row {
@@ -2123,6 +2126,13 @@ input[type='number']::-webkit-inner-spin-button {
   .rt-hud,
   .map-instructions {
     display: none;
+  }
+
+  /* Lift Leaflet's bottom controls (attribution + zoom) above the collapsed
+     sheet handle so the required attribution stays visible without overlap.
+     !important because leaflet.css (.leaflet-bottom{bottom:0}) loads after this. */
+  .leaflet-bottom {
+    bottom: calc(64px + env(safe-area-inset-bottom)) !important;
   }
 
   /* floating cyan top bar */
