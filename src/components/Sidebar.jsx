@@ -1,40 +1,50 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  Home as HomeIcon,
-  Building2,
+  CalendarDots,
+  Flask,
   MapPin,
-  Plus,
-  Trash2,
-  Edit,
-  ArrowUp,
-  ArrowDown,
-  Route,
-  Calendar,
-  ChevronDown,
-  ChevronUp,
-  Search,
+  PlusCircle,
+  ChartLineUp,
+  FloppyDisk,
   Clock,
-  Compass,
-  Navigation,
-  Sparkles,
   Copy,
+  Sparkle,
+  CaretUp,
+  CaretDown,
+  X,
+  Path,
+  NavigationArrow,
+  MapTrifold,
+  MagnifyingGlass,
+  Plus,
+  HandTap,
+  Trash,
+  DownloadSimple,
+  UploadSimple,
+  CarProfile,
+  DotsSixVertical,
+  Check,
   Sun,
   Moon,
-  X,
-  Settings,
-  Download,
-  Upload,
-  GripVertical,
-  Dumbbell,
-  ShoppingBag,
-  Coffee,
-  Utensils,
-  BarChart3,
-} from 'lucide-react';
+  ChartBar,
+  PencilSimple,
+  BookOpenText,
+  MusicNotes,
+  MicrophoneStage,
+} from '@phosphor-icons/react';
 import { DAYS_OF_WEEK, WORKDAY_DAYS, getDayLabel } from '../constants/days';
+import {
+  PLACE_TYPE_OPTIONS,
+  getPlaceTypeLabel,
+  getPlaceTypeColor,
+} from '../constants/placeTypes';
 import { geocodeAddress } from '../services/mapService';
+import { sparkFromEvent } from '../utils/sparkles';
+import TypeDisc from './TypeDisc';
 
-// Helper to format minutes to standard AM/PM time
+const cx = (...classes) => classes.filter(Boolean).join(' ');
+
+// Format minutes-since-midnight to AM/PM
 const formatTime = (minutes) => {
   if (isNaN(minutes)) return '--:--';
   const h = Math.floor(minutes / 60) % 24;
@@ -46,7 +56,7 @@ const formatTime = (minutes) => {
 };
 
 const formatDuration = (mins) => {
-  if (mins === 0) return '0 mins';
+  if (!mins || mins < 1) return '0m';
   const hrs = Math.floor(mins / 60);
   const m = Math.round(mins % 60);
   if (hrs === 0) return `${m}m`;
@@ -56,50 +66,24 @@ const formatDuration = (mins) => {
 const sumWeeklyStats = (weeklyStats, days, field) =>
   days.reduce((sum, day) => sum + (weeklyStats?.[day.key]?.[field] || 0), 0);
 
-const cx = (...classes) => classes.filter(Boolean).join(' ');
-
-const PLACE_TYPE_META = {
-  home: { label: 'Home', Icon: HomeIcon },
-  office: { label: 'Office', Icon: Building2 },
-  exercise: { label: 'Exercise Spot', Icon: Dumbbell },
-  activities: { label: "Morgan's Activities", Icon: Sparkles },
-  shopping: { label: 'Shopping', Icon: ShoppingBag },
-  third_place: { label: 'Third Place', Icon: Coffee },
-  eatery: { label: 'Eatery', Icon: Utensils },
-  other: { label: 'Other', Icon: MapPin },
-};
-
-const getPlaceTypeMeta = (type) => PLACE_TYPE_META[type] || PLACE_TYPE_META.other;
-const getPlaceTypeLabel = (type) => getPlaceTypeMeta(type).label;
-
-function PlaceIconBadge({ type }) {
-  const { Icon } = getPlaceTypeMeta(type);
-  return (
-    <div className={`place-icon-badge ${type || 'other'}`}>
-      <Icon size={16} />
-    </div>
-  );
-}
-
 function PlaceTypeTag({ type }) {
-  const normalizedType = type || 'other';
-  if (normalizedType === 'other') return null;
-
+  const color = getPlaceTypeColor(type);
   return (
-    <span className={`place-special-tag ${normalizedType}`}>
-      {getPlaceTypeLabel(normalizedType)}
+    <span
+      className="place-type-tag"
+      style={{ color, background: `${color}1a` }}
+    >
+      {getPlaceTypeLabel(type)}
     </span>
   );
 }
 
-// Subcomponent for each timeline item to prevent input jumping/cursor issues
+// ---------- Timeline stop card ----------
 function TimelineStopCard({
   stop,
-  index,
   isFixed,
   scheduleIndex,
   activeDaySchedule,
-  timeline,
   onReorderStop,
   onRemoveStopFromActiveDay,
   onUpdateStayDuration,
@@ -112,9 +96,7 @@ function TimelineStopCard({
 }) {
   const [localHours, setLocalHours] = useState((stop.stayDuration / 60).toString());
 
-  // Sync local input when the duration changes externally (e.g. from config import).
-  // Done during render via a stored previous value rather than in an effect, which
-  // avoids the extra commit/cascading render that a setState-in-effect would cause.
+  // Sync local input when duration changes externally (e.g. config import).
   const [prevStayDuration, setPrevStayDuration] = useState(stop.stayDuration);
   if (stop.stayDuration !== prevStayDuration) {
     setPrevStayDuration(stop.stayDuration);
@@ -125,228 +107,153 @@ function TimelineStopCard({
     const val = e.target.value;
     setLocalHours(val);
     const hours = parseFloat(val);
-    if (!isNaN(hours)) {
-      onUpdateStayDuration(stop.stopId, Math.round(hours * 60));
-    } else {
-      onUpdateStayDuration(stop.stopId, 0);
-    }
+    onUpdateStayDuration(stop.stopId, isNaN(hours) ? 0 : Math.round(hours * 60));
   };
+  const handleBlur = () => setLocalHours((parseFloat(localHours) || 0).toString());
 
-  const handleBlur = () => {
-    const hours = parseFloat(localHours) || 0;
-    setLocalHours(hours.toString());
-  };
+  const showDrive = !stop.isLast && stop.driveToNextMinutes > 0.5;
+  const timeText = stop.isFirst
+    ? `leave ${formatTime(stop.departureMinutes)}`
+    : stop.isLast
+      ? `arrive ${formatTime(stop.arrivalMinutes)}`
+      : `${formatTime(stop.arrivalMinutes)} → ${formatTime(stop.departureMinutes)}`;
+  const homeTag = stop.isHomeStart ? ' · start' : stop.isHomeEnd ? ' · end' : '';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column' }}>
-      {/* Stop Card */}
+    <>
       <div
-        className={`stop-card ${!isFixed ? 'draggable' : ''} ${!isFixed && draggedIndex === scheduleIndex ? 'is-dragging' : ''} ${!isFixed && dragOverIndex === scheduleIndex ? 'drag-over' : ''}`}
+        className={cx(
+          'stop-card',
+          isFixed && 'is-home',
+          showDrive && 'has-drive',
+          !isFixed && 'draggable',
+          !isFixed && draggedIndex === scheduleIndex && 'is-dragging',
+          !isFixed && dragOverIndex === scheduleIndex && 'drag-over'
+        )}
         draggable={!isFixed}
         onDragStart={!isFixed ? (e) => handleDragStart(e, scheduleIndex) : undefined}
         onDragOver={!isFixed ? (e) => handleDragOver(e, scheduleIndex) : undefined}
         onDragEnd={!isFixed ? handleDragEnd : undefined}
         onDrop={!isFixed ? (e) => handleDrop(e, scheduleIndex) : undefined}
-        style={{ 
-          display: 'flex', 
-          flexDirection: 'column', 
-          alignItems: 'stretch', 
-          gap: '6px',
-          borderLeft: isFixed ? '3px solid var(--success)' : ''
-        }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div className="stop-card-left">
-            {!isFixed && (
-              <div className="grip-handle" title="Drag to reorder stop">
-                <GripVertical size={14} />
-              </div>
-            )}
-            <div className="stop-number" style={{ 
-              background: isFixed ? 'var(--success-glow)' : '', 
-              color: isFixed ? 'var(--success)' : '' 
-            }}>
-              {isFixed ? '🏠' : index}
+        <div className="stop-card-top">
+          {!isFixed && (
+            <span className="grip-handle" title="Drag to reorder">
+              <DotsSixVertical size={14} weight="bold" />
+            </span>
+          )}
+          {isFixed ? (
+            <TypeDisc type="home" size={34} iconSize={15} shadow="ring" />
+          ) : (
+            <TypeDisc type={stop.placeType} size={34} shadow="ring">
+              <span className="stop-num">{scheduleIndex + 1}</span>
+            </TypeDisc>
+          )}
+          <div className="stop-main">
+            <div className="stop-name" title={stop.placeName}>
+              {stop.placeName}
+              {homeTag && (
+                <span style={{ color: 'var(--fg-3)', fontWeight: 500 }}>{homeTag}</span>
+              )}
             </div>
-            <div className={`stop-type-dot ${stop.placeType}`} title={stop.placeType} />
-            <div className="stop-name" title={stop.placeName} style={{ fontSize: '13.5px', fontWeight: isFixed ? '600' : 'normal' }}>
-              {stop.placeName} {isFixed && <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>({stop.isHomeStart ? 'Start' : 'End'})</span>}
-            </div>
+            <div className="stop-time">{timeText}</div>
           </div>
-
           {!isFixed && (
             <div className="stop-actions">
               <button
                 type="button"
-                className="stop-btn-arrow"
+                className="icon-btn-sm"
                 onClick={() => onReorderStop(scheduleIndex, scheduleIndex - 1)}
                 disabled={scheduleIndex === 0}
-                title="Move Up"
+                title="Move up"
               >
-                <ArrowUp size={12} />
+                <CaretUp size={12} weight="bold" />
               </button>
               <button
                 type="button"
-                className="stop-btn-arrow"
+                className="icon-btn-sm"
                 onClick={() => onReorderStop(scheduleIndex, scheduleIndex + 1)}
                 disabled={scheduleIndex === activeDaySchedule.length - 1}
-                title="Move Down"
+                title="Move down"
               >
-                <ArrowDown size={12} />
+                <CaretDown size={12} weight="bold" />
               </button>
               <button
                 type="button"
-                className="stop-btn-arrow"
+                className="icon-btn-sm danger"
                 onClick={() => onRemoveStopFromActiveDay(stop.stopId)}
-                style={{ color: 'var(--danger)' }}
-                title="Remove stop"
+                title="Remove"
               >
-                <Trash2 size={12} />
+                <X size={12} weight="bold" />
               </button>
             </div>
           )}
         </div>
 
-        {/* Time & Stay Info */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          background: 'var(--bg-primary)',
-          padding: '6px 8px',
-          borderRadius: '6px',
-          fontSize: '11px',
-          border: '1px solid var(--border-color)',
-          marginTop: '2px'
-        }}>
-          <div style={{ color: 'var(--text-secondary)', display: 'flex', gap: '4px' }}>
-            {stop.isFirst ? (
-              <span>📤 Leave: <strong>{formatTime(stop.departureMinutes)}</strong></span>
-            ) : stop.isLast ? (
-              <span>📥 Arrive: <strong>{formatTime(stop.arrivalMinutes)}</strong></span>
-            ) : (
-              <span>
-                📥 <strong>{formatTime(stop.arrivalMinutes)}</strong>
-                {' '}→{' '}
-                📤 <strong>{formatTime(stop.departureMinutes)}</strong>
-              </span>
-            )}
-          </div>
-
-          {!stop.isLast && !isFixed && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Stay:</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0"
-                  value={localHours}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                  style={{
-                    width: '60px',
-                    padding: '3px 6px',
-                    fontSize: '12px',
-                    background: 'var(--bg-secondary)',
-                    color: 'var(--text-primary)',
-                    height: '24px',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '6px',
-                    textAlign: 'center',
-                  }}
-                  title="Stay duration in hours (0.5h step)"
-                />
-                <span style={{ color: 'var(--text-secondary)', fontSize: '11px', fontWeight: '500' }}>h</span>
-              </div>
+        {!isFixed && (
+          <div className="stop-stay-row">
+            <span className="stay-label">stay</span>
+            <div className="stay-input-pill">
+              <input
+                type="number"
+                step="0.5"
+                min="0"
+                value={localHours}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                title="Stay duration in hours"
+              />
+              <span className="stay-unit">h</span>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* If no intermediate stops, render a dashed placeholder between start & end Home */}
-      {stop.isHomeStart && timeline[index + 1]?.isHomeEnd && (
-        <div style={{
-          paddingLeft: '22px',
-          margin: '8px 0',
-          borderLeft: '2px dashed var(--border-color)',
-          marginLeft: '21px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '4px'
-        }}>
-          <div style={{
-            border: '1.5px dashed var(--border-color)',
-            borderRadius: '8px',
-            padding: '16px',
-            textAlign: 'center',
-            background: 'rgba(255, 255, 255, 0.015)',
-            fontSize: '11.5px',
-            color: 'var(--text-muted)'
-          }}>
-            📍 Add destinations from the saved-place tray below or click on the map to build your commute route.
-          </div>
-        </div>
-      )}
-
-      {/* Travel Connection details */}
-      {!stop.isLast && stop.driveToNextMinutes > 0 && (
-        <div style={{
-          paddingLeft: '22px',
-          margin: '4px 0',
-          borderLeft: '2px dashed var(--border-color)',
-          marginLeft: '21px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          color: 'var(--text-secondary)',
-          fontSize: '11px'
-        }}>
-          <span>🚗</span>
-          <span>
-            Drive <strong>{Math.round(stop.driveToNextMinutes)} mins</strong>
-            {' '}({stop.driveToNextMiles.toFixed(1)} mi)
+      {showDrive && (
+        <div className="drive-connector">
+          <CarProfile size={14} weight="fill" style={{ color: 'var(--candy-blue)' }} />
+          <span className="drive-text">
+            drive {Math.round(stop.driveToNextMinutes)} min · {stop.driveToNextMiles.toFixed(1)} mi
           </span>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
+// ---------- Header ----------
 function SidebarHeader({ theme, onToggleTheme, onOpenDashboard }) {
   return (
-    <div className="sidebar-header">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-        <div className="sidebar-logo">
-          <Compass size={22} />
-          <h1>Routeen</h1>
+    <header className="sidebar-header">
+      <div className="sidebar-brand">
+        <span className="jb-mark jb-mark--bob" style={{ width: 46, height: 46 }}>
+          <span className="jb-mark-gloss" />
+          <MapPin className="jb-mark-pin" size={13} weight="fill" />
+        </span>
+        <div>
+          <div className="sidebar-wordmark">routeen</div>
+          <div className="sidebar-subtitle">weekly commute planner</div>
         </div>
-        <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-          Daily Commute Planner
-        </p>
       </div>
-
-      <div style={{ display: 'flex', gap: '6px' }}>
+      <div className="sidebar-header-actions">
         <button
           type="button"
-          onClick={onOpenDashboard}
-          className="theme-toggle-btn"
-          title="Open Analytics & Weekly Summary"
-          style={{ color: 'var(--primary)' }}
-        >
-          <BarChart3 size={15} />
-        </button>
-
-        <button
-          type="button"
+          className="header-round-btn"
           onClick={onToggleTheme}
-          className="theme-toggle-btn"
-          title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+          title="Toggle light / dark"
         >
-          {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+          {theme === 'dark' ? <Sun size={17} weight="fill" /> : <Moon size={17} weight="fill" />}
+        </button>
+        <button
+          type="button"
+          className="header-round-btn"
+          onClick={onOpenDashboard}
+          title="Weekly insights"
+        >
+          <ChartBar size={18} weight="bold" />
         </button>
       </div>
-    </div>
+    </header>
   );
 }
 
@@ -355,50 +262,50 @@ function ModeSwitch({ activeMode, onModeChange }) {
     <div className="mode-switch">
       <button
         type="button"
-        className={`mode-tab ${activeMode === 'schedule' ? 'active' : ''}`}
+        className={cx('mode-tab', activeMode === 'schedule' && 'active')}
         onClick={() => onModeChange('schedule')}
       >
-        <Calendar size={15} />
-        Weekly Planner
+        <CalendarDots size={16} weight="bold" /> weekly planner
       </button>
       <button
         type="button"
-        className={`mode-tab ${activeMode === 'sandbox' ? 'active' : ''}`}
+        className={cx('mode-tab', activeMode === 'sandbox' && 'active')}
         onClick={() => onModeChange('sandbox')}
       >
-        <Route size={15} />
-        Route Sandbox
+        <Flask size={16} weight="bold" /> sandbox
       </button>
     </div>
   );
 }
 
 function MobileSheetHandle({ state, summary, onCycle }) {
-  const stateLabel =
-    state === 'peek' ? 'peek' : state === 'half' ? 'half open' : 'fully open';
-
+  const label =
+    summary.meta ? `${summary.title} · ${summary.meta}` : summary.title;
   return (
     <div className="mobile-sheet-handle-row">
       <button
         type="button"
         className="mobile-sheet-handle"
         onClick={onCycle}
-        aria-label={`Planner sheet is ${stateLabel}. Tap to change sheet size.`}
         aria-expanded={state !== 'peek'}
       >
         <span className="mobile-sheet-grip" aria-hidden="true" />
         <span className="mobile-sheet-summary">
-          <span className="mobile-sheet-title">{summary.title}</span>
-          <span className="mobile-sheet-meta">{summary.meta}</span>
-        </span>
-        <span className="mobile-sheet-state-icon" aria-hidden="true">
-          {state === 'full' ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+          <span className="mobile-sheet-title">{label}</span>
+          <span className="mobile-sheet-state-icon" aria-hidden="true">
+            {state === 'full' ? (
+              <CaretDown size={16} weight="bold" />
+            ) : (
+              <CaretUp size={16} weight="bold" />
+            )}
+          </span>
         </span>
       </button>
     </div>
   );
 }
 
+// ---------- Saved places ----------
 function SavedPlacesTray({
   places,
   activeMode,
@@ -410,139 +317,123 @@ function SavedPlacesTray({
   onCancelEdit,
   onDeletePlace,
   onShowToast,
-  className = '',
 }) {
   const [query, setQuery] = useState('');
   const filteredPlaces = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) return places;
-
-    return places.filter((place) =>
-      [place.name, place.address, getPlaceTypeLabel(place.type)]
+    const q = query.trim().toLowerCase();
+    if (!q) return places;
+    return places.filter((p) =>
+      [p.name, p.address, getPlaceTypeLabel(p.type)]
         .filter(Boolean)
-        .some((value) => value.toLowerCase().includes(normalizedQuery))
+        .some((v) => v.toLowerCase().includes(q))
     );
   }, [places, query]);
 
+  const isSchedule = activeMode === 'schedule';
+
   return (
-    <div className={cx('section-card saved-places-tray', className)}>
+    <section className="section-card">
       <div className="section-title">
-        <h2>
-          <MapPin size={16} style={{ color: 'var(--primary)' }} />
-          Saved Places ({places.length})
-        </h2>
+        <MapPin size={19} weight="fill" style={{ color: 'var(--candy-blue)' }} />
+        <h2>saved places</h2>
+        <span className="section-count-badge">{places.length}</span>
       </div>
 
-      <div className="saved-place-search">
-        <Search className="input-icon" />
+      <div className="search-wrap">
+        <MagnifyingGlass className="input-icon" size={15} />
         <input
           type="search"
-          className="text-input"
-          placeholder="Search name, address, or type"
+          className="text-input with-icon"
+          placeholder="search name, address, or type"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
 
-      {places.length === 0 ? (
-        <div className="empty-state">
-          <MapPin size={24} />
-          <p>No places saved yet.</p>
-          <p style={{ fontSize: '11px' }}>Search below or click on the map to save places.</p>
-        </div>
-      ) : filteredPlaces.length === 0 ? (
-        <div className="empty-state">
-          <Search size={24} />
-          <p>No saved places match that search.</p>
-        </div>
-      ) : (
-        <div className="saved-places-tray-list">
-          {filteredPlaces.map((place) => {
-            const isSelectedInSandbox =
-              activeMode === 'sandbox' && sandboxPoints.includes(place.id);
-            const isCurrentlyEditing = editingPlaceId === place.id;
-
+      <div className="saved-places-list">
+        {filteredPlaces.length === 0 ? (
+          <div className="no-results">no places match that search.</div>
+        ) : (
+          filteredPlaces.map((place) => {
+            const inSandbox = !isSchedule && sandboxPoints.includes(place.id);
+            const pillColor = isSchedule
+              ? 'var(--accent)'
+              : inSandbox
+                ? 'var(--candy-green)'
+                : 'var(--candy-blue)';
+            const pillLabel = isSchedule ? 'add' : inSandbox ? 'added' : 'select';
             return (
               <div
                 key={place.id}
-                className={cx('saved-place-row', isCurrentlyEditing && 'editing')}
+                className={cx('saved-place-row', editingPlaceId === place.id && 'editing')}
               >
-                <div className="saved-place-row-main">
-                  <PlaceIconBadge type={place.type} />
-                  <div className="place-info">
-                    <div className="place-name">
-                      {place.name}
-                      <PlaceTypeTag type={place.type} />
-                    </div>
-                    <div className="place-address" title={place.address}>
-                      {place.address}
-                    </div>
+                <TypeDisc type={place.type} size={38} radius={13} iconSize={17} />
+                <div className="saved-place-info">
+                  <div className="saved-place-nameline">
+                    <span className="saved-place-name">{place.name}</span>
+                    <PlaceTypeTag type={place.type} />
+                  </div>
+                  <div className="saved-place-address" title={place.address}>
+                    {place.address}
                   </div>
                 </div>
-
-                <div className="saved-place-row-actions">
-                  {activeMode === 'schedule' ? (
-                    <button
-                      type="button"
-                      className="button-secondary saved-place-primary-action"
-                      onClick={() => onAddStopToActiveDay(place)}
-                      title="Add to active day"
-                    >
-                      <Plus size={12} />
-                      Add
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className={cx(
-                        'button-secondary saved-place-primary-action',
-                        isSelectedInSandbox && 'selected'
-                      )}
-                      onClick={() => onToggleSandboxPoint(place.id)}
-                      title="Toggle sandbox routing selection"
-                    >
-                      {isSelectedInSandbox ? 'Selected' : 'Select'}
-                    </button>
-                  )}
-
+                <div className="saved-place-actions">
                   <button
                     type="button"
-                    className="button-secondary saved-place-icon-button"
-                    onClick={() => onStartEdit(place)}
-                    disabled={isCurrentlyEditing}
-                    title="Edit saved place"
+                    className="pill-action"
+                    style={{ background: pillColor }}
+                    onClick={(e) => {
+                      if (isSchedule) {
+                        onAddStopToActiveDay(place);
+                        sparkFromEvent(e);
+                      } else {
+                        onToggleSandboxPoint(place.id);
+                        if (!inSandbox) sparkFromEvent(e);
+                      }
+                    }}
+                    title={isSchedule ? 'Add to active day' : 'Toggle sandbox'}
                   >
-                    <Edit size={12} />
+                    {inSandbox ? <Check size={13} weight="bold" /> : <Plus size={13} weight="bold" />}
+                    <span>{pillLabel}</span>
                   </button>
-
                   <button
                     type="button"
-                    className="button-danger saved-place-icon-button"
+                    className="round-icon-btn"
+                    onClick={() => onStartEdit(place)}
+                    disabled={editingPlaceId === place.id}
+                    title="Edit place"
+                  >
+                    <PencilSimple size={13} weight="bold" />
+                  </button>
+                  <button
+                    type="button"
+                    className="round-icon-btn danger"
                     onClick={() => {
                       if (
                         confirm(
-                          `Are you sure you want to delete "${place.name}"? This will also remove it from all daily schedules.`
+                          `Delete "${place.name}"? This also removes it from all daily schedules.`
                         )
                       ) {
-                        if (isCurrentlyEditing) onCancelEdit();
+                        if (editingPlaceId === place.id) onCancelEdit();
                         onDeletePlace(place.id);
                         onShowToast(`Deleted "${place.name}"`, 'info');
                       }
                     }}
-                    title="Delete saved place"
+                    title="Delete place"
                   >
-                    <Trash2 size={12} />
+                    <Trash size={13} weight="bold" />
                   </button>
                 </div>
               </div>
             );
-          })}
-        </div>
-      )}
-    </div>
+          })
+        )}
+      </div>
+    </section>
   );
 }
 
+// ---------- Add / edit place ----------
 function PlaceFormPanel({
   panelRef,
   isOpen,
@@ -563,82 +454,68 @@ function PlaceFormPanel({
   onPlaceAddressChange,
   onPlaceTypeChange,
   onLimitToLocalChange,
-  className = '',
 }) {
   return (
-    <div
-      ref={panelRef}
-      className={cx('section-card place-form-panel', !isOpen && 'collapsed', className)}
-      style={{ borderColor: editingPlaceId ? 'var(--primary)' : '' }}
-    >
-      <div className="section-title place-form-panel-title">
-        <h2 style={{ color: editingPlaceId ? 'var(--primary)' : '' }}>
-          <MapPin size={16} style={{ color: editingPlaceId ? 'var(--primary)' : 'var(--text-secondary)' }} />
-          {editingPlaceId ? 'Edit Saved Place' : 'Add / Edit Place'}
-        </h2>
-        <div className="place-form-panel-actions">
-          {editingPlaceId && (
-            <button
-              type="button"
-              className="button-secondary"
-              onClick={onCancelEdit}
-              style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--text-muted)' }}
-            >
-              Cancel
-            </button>
-          )}
-          <button
-            type="button"
-            className="button-secondary place-form-toggle"
-            onClick={onToggle}
-            title={isOpen ? 'Collapse place form' : 'Open place form'}
+    <section className="section-card" ref={panelRef}>
+      <button type="button" className="collapse-header" onClick={onToggle}>
+        <PlusCircle size={19} weight="fill" style={{ color: 'var(--candy-green)' }} />
+        <h2>{editingPlaceId ? 'edit place' : 'add a place'}</h2>
+        {editingPlaceId && (
+          <span
+            className="link-btn"
+            role="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onCancelEdit();
+            }}
+            style={{ color: 'var(--fg-3)' }}
           >
-            {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </button>
-        </div>
-      </div>
+            cancel
+          </span>
+        )}
+        {isOpen ? (
+          <CaretUp className="collapse-caret" size={16} weight="bold" />
+        ) : (
+          <CaretDown className="collapse-caret" size={16} weight="bold" />
+        )}
+      </button>
 
       {isOpen && (
-        <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <form className="form-fields" onSubmit={onSubmit}>
           <div className="form-group">
-            <label className="form-label">Location Name</label>
-            <div className="input-wrapper">
-              <Compass className="input-icon" />
-              <input
-                type="text"
-                className="text-input"
-                placeholder="E.g., Home, Office, Gym, Cafe"
-                value={placeName}
-                onChange={(e) => onPlaceNameChange(e.target.value)}
-              />
-            </div>
+            <label className="form-label">name</label>
+            <input
+              type="text"
+              className="text-input"
+              placeholder="e.g. Dentist, Pilates, Mom's"
+              value={placeName}
+              onChange={(e) => onPlaceNameChange(e.target.value)}
+            />
           </div>
 
           <div className="form-group" style={{ position: 'relative' }}>
-            <label className="form-label">Address or Name</label>
-            <div className="input-wrapper" style={{ display: 'flex', gap: '6px' }}>
-              <div style={{ position: 'relative', flexGrow: 1 }}>
-                <MapPin className="input-icon" />
+            <label className="form-label">address or name</label>
+            <div className="field-with-button">
+              <div className="input-wrap">
+                <MapPin className="input-icon" size={15} />
                 <input
                   type="text"
-                  className="text-input"
-                  placeholder="Enter address or business name"
+                  className="text-input with-icon"
+                  placeholder="enter address or business name"
                   value={placeAddress}
                   onChange={(e) => onPlaceAddressChange(e.target.value)}
                 />
               </div>
               <button
                 type="button"
-                className="button-secondary"
+                className="icon-square-btn"
                 onClick={onAddressSearch}
                 disabled={searchLoading}
-                style={{ flexShrink: 0, padding: '10px' }}
                 title="Search & verify address"
               >
-                <Search size={16} />
+                <MagnifyingGlass size={16} weight="bold" />
               </button>
             </div>
-
             {searchSuggestions.length > 0 && (
               <div className="search-results-dropdown">
                 {searchSuggestions.map((item, idx) => (
@@ -655,80 +532,57 @@ function PlaceFormPanel({
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+          <div className="limit-checkbox-row">
             <input
               type="checkbox"
               id="limit-to-local-checkbox"
               checked={limitToLocal}
               disabled={!homePlace}
               onChange={(e) => onLimitToLocalChange(e.target.checked)}
-              style={{
-                width: '14px',
-                height: '14px',
-                cursor: homePlace ? 'pointer' : 'not-allowed',
-                accentColor: 'var(--primary)',
-              }}
             />
-            <label
-              htmlFor="limit-to-local-checkbox"
-              style={{
-                fontSize: '12px',
-                color: homePlace ? 'var(--text-primary)' : 'var(--text-muted)',
-                cursor: homePlace ? 'pointer' : 'not-allowed',
-                fontWeight: 500,
-              }}
-              title={!homePlace ? 'Save a Home location first to enable this limit' : 'Limit to 50 miles of Home'}
-            >
-              Limit to 50 miles of Home {!homePlace && <span style={{ fontSize: '10px', color: 'var(--danger)' }}>(Requires Home)</span>}
+            <label htmlFor="limit-to-local-checkbox">
+              limit to 50 miles of home
+              {!homePlace && (
+                <span style={{ color: 'var(--candy-raspberry)' }}> (requires home)</span>
+              )}
             </label>
           </div>
 
           <div className="form-group">
-            <label className="form-label">Location Type</label>
+            <label className="form-label">flavor</label>
             <select
               className="select-input"
               value={placeType}
               onChange={(e) => onPlaceTypeChange(e.target.value)}
             >
-              <option value="other">Other / Stop</option>
-              <option value="home">Home (Special Location)</option>
-              <option value="office">Office (Special Location)</option>
-              <option value="exercise">Exercise Spot</option>
-              <option value="activities">Morgan's Activities</option>
-              <option value="shopping">Shopping</option>
-              <option value="third_place">Third Place</option>
-              <option value="eatery">Eatery</option>
+              {PLACE_TYPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
             </select>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-            <button
-              type="submit"
-              className="button-primary"
-              disabled={searchLoading || !placeName.trim() || !placeAddress.trim()}
-              style={{ flex: 1 }}
-            >
-              {editingPlaceId ? <Sparkles size={16} /> : <Plus size={16} />}
-              {editingPlaceId ? 'Update Location' : 'Save Location'}
-            </button>
-            {editingPlaceId && (
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={onCancelEdit}
-                style={{ padding: '10px' }}
-                title="Cancel edit"
-              >
-                <X size={16} />
-              </button>
-            )}
+          <div className="form-tip">
+            <HandTap className="tip-icon" size={15} weight="fill" />
+            <span>tip: tap anywhere on the map to drop a pin exactly where you want</span>
           </div>
+
+          <button
+            type="submit"
+            className="btn-primary green"
+            disabled={searchLoading || !placeName.trim() || !placeAddress.trim()}
+          >
+            {editingPlaceId ? <Check size={15} weight="bold" /> : <Plus size={15} weight="bold" />}
+            {editingPlaceId ? 'update place' : 'save place'}
+          </button>
         </form>
       )}
-    </div>
+    </section>
   );
 }
 
+// ---------- Weekly planner ----------
 function WeeklyPlannerSection({
   activeDay,
   setActiveDay,
@@ -739,7 +593,6 @@ function WeeklyPlannerSection({
   schedules,
   onOptimizeRoute,
   timeline,
-  hasHome,
   activeRouteDetails,
   showDirections,
   setShowDirections,
@@ -754,356 +607,192 @@ function WeeklyPlannerSection({
   onReorderStop,
   onRemoveStopFromActiveDay,
   onUpdateStayDuration,
-  className = '',
 }) {
+  const hasStops = activeDaySchedule.length > 0;
+  const hasRoute = timeline.length >= 2 && activeRouteDetails;
+
   return (
-    <div className={cx('section-card route-builder-section', className)}>
+    <section className="section-card">
       <div className="section-title">
-        <h2>
-          <Calendar size={16} style={{ color: 'var(--primary)' }} />
-          Daily Road Maps
-        </h2>
+        <CalendarDots size={19} weight="fill" style={{ color: 'var(--candy-raspberry)' }} />
+        <h2>daily road maps</h2>
       </div>
 
       <div className="days-tabs">
-        {DAYS_OF_WEEK.map((day) => (
-          <button
-            type="button"
-            key={day.key}
-            className={`day-tab ${activeDay === day.key ? 'active' : ''}`}
-            onClick={() => {
-              setActiveDay(day.key);
-              setShowDirections(false);
-            }}
-          >
-            {day.short}
-          </button>
-        ))}
+        {DAYS_OF_WEEK.map((day) => {
+          const dayHasStops = (schedules?.[day.key]?.length || 0) > 0;
+          return (
+            <button
+              type="button"
+              key={day.key}
+              className={cx('day-tab', activeDay === day.key && 'active')}
+              title={day.label}
+              onClick={() => {
+                setActiveDay(day.key);
+                setShowDirections(false);
+              }}
+            >
+              <span>{day.short}</span>
+              <span className={cx('day-tab-dot', dayHasStops && 'has-stops')} />
+            </button>
+          );
+        })}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Clock size={14} style={{ color: 'var(--text-muted)' }} />
-          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>Leave:</span>
+      <div className="planner-controls">
+        <div className="leave-pill">
+          <Clock size={15} weight="bold" style={{ color: 'var(--candy-blue)' }} />
+          <span className="leave-label">leave</span>
           <input
             type="time"
-            className="text-input"
-            style={{ width: '85px', padding: '4px 6px', fontSize: '12px', height: '28px' }}
             value={startTime || '08:00'}
             onChange={(e) => onUpdateStartTime(e.target.value)}
           />
         </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Copy size={13} style={{ color: 'var(--text-muted)' }} />
+        <div className="copy-day-wrap">
+          <Copy size={14} weight="bold" style={{ color: 'var(--fg-3)' }} />
           <select
-            className="select-input"
-            onChange={(e) => {
-              if (e.target.value) {
-                if (activeDaySchedule.length > 0) {
-                  if (confirm(`Overwrite active schedule for ${getDayLabel(activeDay)} with the schedule from ${getDayLabel(e.target.value)}?`)) {
-                    onCopySchedule(e.target.value, activeDay);
-                  }
-                } else {
-                  onCopySchedule(e.target.value, activeDay);
-                }
-                e.target.value = '';
-              }
-            }}
+            className="copy-day-select"
             defaultValue=""
-            style={{
-              width: '130px',
-              fontSize: '11.5px',
-              padding: '4px 24px 4px 8px',
-              height: '28px',
-              backgroundPosition: 'right 6px center',
-              backgroundSize: '12px',
-              cursor: 'pointer',
+            onChange={(e) => {
+              const from = e.target.value;
+              if (!from) return;
+              if (
+                activeDaySchedule.length === 0 ||
+                confirm(
+                  `Overwrite ${getDayLabel(activeDay)} with the schedule from ${getDayLabel(from)}?`
+                )
+              ) {
+                onCopySchedule(from, activeDay);
+              }
+              e.target.value = '';
             }}
           >
-            <option value="" disabled>Copy from...</option>
-            {DAYS_OF_WEEK
-              .filter((day) => day.key !== activeDay)
-              .map((day) => {
-                const count = schedules?.[day.key]?.length || 0;
-                return (
-                  <option key={day.key} value={day.key} disabled={count === 0}>
-                    {day.label} {count > 0 ? `(${count} stop${count === 1 ? '' : 's'})` : '(empty)'}
-                  </option>
-                );
-              })}
+            <option value="" disabled>
+              copy a day…
+            </option>
+            {DAYS_OF_WEEK.filter((d) => d.key !== activeDay).map((d) => {
+              const count = schedules?.[d.key]?.length || 0;
+              return (
+                <option key={d.key} value={d.key} disabled={count === 0}>
+                  {d.label} {count > 0 ? `(${count})` : '(empty)'}
+                </option>
+              );
+            })}
           </select>
         </div>
       </div>
 
-      {activeDaySchedule.length >= 4 && (
+      {activeDaySchedule.length >= 2 && (
         <button
           type="button"
-          className="button-secondary"
-          onClick={onOptimizeRoute}
-          style={{
-            width: '100%',
-            padding: '6px 12px',
-            fontSize: '12px',
-            color: 'var(--success)',
-            borderColor: 'var(--success)',
-            background: 'var(--success-glow)',
-            marginBottom: '12px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '6px',
+          className="optimize-btn"
+          onClick={(e) => {
+            onOptimizeRoute();
+            sparkFromEvent(e);
           }}
           title="Optimize stop order to minimize distance"
         >
-          <Sparkles size={12} />
-          Optimize Stop Sequence Order
+          <Sparkle size={15} weight="fill" /> optimize stop order
         </button>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <div className="schedule-stops-container">
-          {activeDaySchedule.length === 0 && !hasHome ? (
-            <div className="empty-state">
-              <Route size={24} />
-              <p>No stops added for {getDayLabel(activeDay)}.</p>
-              <p style={{ fontSize: '11px' }}>
-                Use the saved-place tray below to add stops.
-              </p>
-            </div>
-          ) : (
-            timeline.map((stop, index) => {
-              const isFixed = stop.isHomeStart || stop.isHomeEnd;
-              const scheduleIndex = isFixed ? -1 : activeDaySchedule.findIndex((s) => s.id === stop.stopId);
+      <div className="schedule-stops-container">
+        {timeline.map((stop, index) => {
+          const isFixed = stop.isHomeStart || stop.isHomeEnd;
+          const scheduleIndex = isFixed
+            ? -1
+            : activeDaySchedule.findIndex((s) => s.id === stop.stopId);
+          return (
+            <TimelineStopCard
+              key={stop.stopId || `fixed-${index}`}
+              stop={stop}
+              index={index}
+              isFixed={isFixed}
+              scheduleIndex={scheduleIndex}
+              activeDaySchedule={activeDaySchedule}
+              timeline={timeline}
+              onReorderStop={onReorderStop}
+              onRemoveStopFromActiveDay={onRemoveStopFromActiveDay}
+              onUpdateStayDuration={onUpdateStayDuration}
+              draggedIndex={draggedIndex}
+              dragOverIndex={dragOverIndex}
+              handleDragStart={handleDragStart}
+              handleDragOver={handleDragOver}
+              handleDragEnd={handleDragEnd}
+              handleDrop={handleDrop}
+            />
+          );
+        })}
 
-              return (
-                <TimelineStopCard
-                  key={stop.stopId || `fixed-${index}`}
-                  stop={stop}
-                  index={index}
-                  isFixed={isFixed}
-                  scheduleIndex={scheduleIndex}
-                  activeDaySchedule={activeDaySchedule}
-                  timeline={timeline}
-                  onReorderStop={onReorderStop}
-                  onRemoveStopFromActiveDay={onRemoveStopFromActiveDay}
-                  onUpdateStayDuration={onUpdateStayDuration}
-                  draggedIndex={draggedIndex}
-                  dragOverIndex={dragOverIndex}
-                  handleDragStart={handleDragStart}
-                  handleDragOver={handleDragOver}
-                  handleDragEnd={handleDragEnd}
-                  handleDrop={handleDrop}
-                />
-              );
-            })
-          )}
-        </div>
-
-        {timeline.length >= 2 && activeRouteDetails && (
-          <>
-            <div className="stats-summary">
-              <div className="stat-item">
-                <div className="stat-icon-wrapper">
-                  <Route size={16} />
-                </div>
-                <div>
-                  <div className="stat-label">Distance</div>
-                  <div className="stat-value">
-                    {activeRouteDetails.distance.toFixed(1)} mi
-                  </div>
-                </div>
-              </div>
-
-              <div className="stat-item">
-                <div className="stat-icon-wrapper">
-                  <Clock size={16} />
-                </div>
-                <div>
-                  <div className="stat-label">Driving Time</div>
-                  <div className="stat-value">
-                    {activeRouteDetails.duration < 60
-                      ? `${Math.round(activeRouteDetails.duration)} mins`
-                      : `${Math.floor(activeRouteDetails.duration / 60)}h ${Math.round(
-                          activeRouteDetails.duration % 60
-                        )}m`}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-              <button
-                type="button"
-                className="button-primary"
-                onClick={onSendToGoogleMaps}
-                style={{ flex: 1, padding: '8px 12px', fontSize: '12px' }}
-              >
-                <Navigation size={13} />
-                Open Google Maps
-              </button>
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={onCopySummary}
-                style={{ padding: '8px 12px', fontSize: '12px' }}
-                title="Copy itinerary details to clipboard"
-              >
-                <Copy size={13} />
-              </button>
-            </div>
-
-            <div>
-              <button
-                type="button"
-                className="directions-toggle"
-                onClick={() => setShowDirections(!showDirections)}
-              >
-                <span>
-                  {showDirections ? 'Hide Step-by-Step Directions' : 'Show Step-by-Step Directions'}
-                </span>
-                {showDirections ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </button>
-
-              {showDirections && activeRouteDetails.steps && (
-                <div className="directions-list">
-                  {activeRouteDetails.steps.map((step, idx) => (
-                    <div key={idx} className="direction-step">
-                      <span className="direction-text">{step.instruction}</span>
-                      <span className="direction-meta">
-                        {step.distance.toFixed(2)} mi ({Math.round(step.duration * 2) / 2}m)
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
+        {!hasStops && (
+          <div className="empty-state">
+            <MapTrifold className="empty-icon" size={26} />
+            <p>no stops yet for {getDayLabel(activeDay)}</p>
+            <p className="sub">add places from your tray below, or tap a marker on the map</p>
+          </div>
         )}
       </div>
-    </div>
+
+      {hasRoute && (
+        <>
+          <div className="stats-summary">
+            <div className="stat-tile">
+              <div className="stat-tile-icon distance">
+                <Path size={17} weight="bold" />
+              </div>
+              <div>
+                <div className="stat-label">distance</div>
+                <div className="stat-value">{activeRouteDetails.distance.toFixed(1)} mi</div>
+              </div>
+            </div>
+            <div className="stat-tile">
+              <div className="stat-tile-icon duration">
+                <Clock size={17} weight="bold" />
+              </div>
+              <div>
+                <div className="stat-label">drive time</div>
+                <div className="stat-value">{formatDuration(activeRouteDetails.duration)}</div>
+              </div>
+            </div>
+          </div>
+
+          <button type="button" className="btn-primary open-maps-btn" onClick={onSendToGoogleMaps}>
+            <NavigationArrow size={15} weight="fill" /> open in google maps
+          </button>
+
+          <button type="button" className="directions-toggle" onClick={onCopySummary}>
+            <Copy size={14} weight="bold" /> copy itinerary
+          </button>
+
+          <button
+            type="button"
+            className="directions-toggle"
+            onClick={() => setShowDirections(!showDirections)}
+          >
+            <span>{showDirections ? 'hide step-by-step directions' : 'show step-by-step directions'}</span>
+            {showDirections ? <CaretUp size={14} weight="bold" /> : <CaretDown size={14} weight="bold" />}
+          </button>
+
+          {showDirections && activeRouteDetails.steps && (
+            <div className="directions-list">
+              {activeRouteDetails.steps.map((step, idx) => (
+                <div key={idx} className="direction-step">
+                  <span className="direction-text">{step.instruction}</span>
+                  <span className="direction-meta">
+                    {step.distance.toFixed(2)} mi ({Math.round(step.duration * 2) / 2}m)
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 
-function CommuteProjectionsSection({ weeklyStats, className = '' }) {
-  const [projectionMode, setProjectionMode] = useState('workdays');
-  const projectionDays = projectionMode === 'workdays' ? WORKDAY_DAYS : DAYS_OF_WEEK;
-  const projectionWeeklyDistance = sumWeeklyStats(weeklyStats, projectionDays, 'distance');
-  const projectionWeeklyDuration = sumWeeklyStats(weeklyStats, projectionDays, 'duration');
-  const projectionMonthlyDistance = projectionWeeklyDistance * (52 / 12);
-  const projectionMonthlyDuration = projectionWeeklyDuration * (52 / 12);
-  const projectionYearlyDistance = projectionWeeklyDistance * 52;
-  const projectionYearlyDuration = projectionWeeklyDuration * 52;
-  const projectionDayCount = projectionDays.length;
-  const projectionModeLabel = projectionMode === 'workdays' ? 'workdays' : 'days';
-
-  return (
-    <div className={cx('section-card', className)}>
-      <div className="section-title">
-        <h2>
-          <Route size={16} style={{ color: 'var(--primary)' }} />
-          Commute Projections
-        </h2>
-      </div>
-      <div className="projection-toggle" aria-label="Projection range">
-        <button
-          type="button"
-          className={`projection-toggle-btn ${projectionMode === 'workdays' ? 'active' : ''}`}
-          onClick={() => setProjectionMode('workdays')}
-          aria-pressed={projectionMode === 'workdays'}
-        >
-          Workdays
-        </button>
-        <button
-          type="button"
-          className={`projection-toggle-btn ${projectionMode === 'full-week' ? 'active' : ''}`}
-          onClick={() => setProjectionMode('full-week')}
-          aria-pressed={projectionMode === 'full-week'}
-        >
-          Full Week
-        </button>
-      </div>
-      <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: '1.4' }}>
-        {projectionMode === 'workdays'
-          ? 'Driving mileage and time spent on workday commutes (Monday-Friday), accounting for 260 workdays per year.'
-          : 'Driving mileage and time spent across the full weekly routine, including Saturday and Sunday routes.'}
-      </p>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-        <div className="projection-card">
-          <div className="projection-card-title">Weekly</div>
-          <div className="projection-card-subtitle">
-            {projectionDayCount} {projectionModeLabel}
-          </div>
-          <div className="projection-card-distance">
-            {projectionWeeklyDistance.toFixed(1)} mi
-          </div>
-          <div className="projection-card-duration">
-            {formatDuration(projectionWeeklyDuration)}
-          </div>
-        </div>
-
-        <div className="projection-card">
-          <div className="projection-card-title">Monthly</div>
-          <div className="projection-card-subtitle">
-            Avg. {((projectionDayCount * 52) / 12).toFixed(1)} {projectionModeLabel}
-          </div>
-          <div className="projection-card-distance">
-            {projectionMonthlyDistance.toFixed(1)} mi
-          </div>
-          <div className="projection-card-duration">
-            {formatDuration(projectionMonthlyDuration)}
-          </div>
-        </div>
-
-        <div className="projection-card">
-          <div className="projection-card-title">Yearly</div>
-          <div className="projection-card-subtitle">
-            {projectionDayCount * 52} {projectionModeLabel}
-          </div>
-          <div className="projection-card-distance">
-            {projectionYearlyDistance.toLocaleString(undefined, { maximumFractionDigits: 1 })} mi
-          </div>
-          <div className="projection-card-duration">
-            {formatDuration(projectionYearlyDuration)}
-          </div>
-        </div>
-      </div>
-
-      <div className="projection-entertainment">
-        <div className="projection-entertainment-title">
-          Commute Entertainment (Yearly)
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginTop: '2px' }}>
-          <div className="projection-mini-card">
-            <span style={{ fontSize: '15px' }} title="Based on average audiobook length of 10 hours">📚</span>
-            <span className="projection-mini-value">
-              {Math.floor(projectionYearlyDuration / 600).toLocaleString()}
-            </span>
-            <span className="projection-mini-label">Audiobooks</span>
-          </div>
-
-          <div className="projection-mini-card">
-            <span style={{ fontSize: '15px' }} title="Based on average song length of 3.5 minutes">🎵</span>
-            <span className="projection-mini-value">
-              {Math.floor(projectionYearlyDuration / 3.5).toLocaleString()}
-            </span>
-            <span className="projection-mini-label">Songs</span>
-          </div>
-
-          <div className="projection-mini-card">
-            <span style={{ fontSize: '15px' }} title="Based on average podcast episode of 45 minutes">🎙️</span>
-            <span className="projection-mini-value">
-              {Math.floor(projectionYearlyDuration / 45).toLocaleString()}
-            </span>
-            <span className="projection-mini-label">Podcast Eps</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
+// ---------- Sandbox ----------
 function SandboxRouteBuilderSection({
   places,
   sandboxPoints,
@@ -1112,182 +801,218 @@ function SandboxRouteBuilderSection({
   activeRouteDetails,
   showDirections,
   setShowDirections,
-  className = '',
 }) {
+  const hasRoute = sandboxPoints.length >= 2 && activeRouteDetails;
   return (
-    <div className={cx('section-card route-builder-section', className)}>
+    <section className="section-card">
       <div className="section-title">
-        <h2>
-          <Route size={16} style={{ color: 'var(--info)' }} />
-          Ad-hoc Route Sandbox
-        </h2>
+        <Flask size={19} weight="fill" style={{ color: 'var(--candy-blue)' }} />
+        <h2 style={{ flex: 1 }}>route sandbox</h2>
         {sandboxPoints.length > 0 && (
-          <button
-            type="button"
-            className="button-secondary"
-            onClick={onClearSandbox}
-            style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--danger)' }}
-          >
-            Clear Selection
+          <button type="button" className="link-btn" onClick={onClearSandbox}>
+            clear
           </button>
         )}
       </div>
+      <p className="sandbox-intro">
+        drop any places onto a throwaway route to compare distances — no schedule, no home anchor.
+      </p>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <div className="sandbox-points-list">
-          {sandboxPoints.length === 0 ? (
-            <div className="empty-state">
-              <Route size={24} style={{ color: 'var(--info)' }} />
-              <p>No places selected for sandbox routing.</p>
-              <p style={{ fontSize: '11px' }}>
-                Use the saved-place tray below or map markers to choose points.
-              </p>
-            </div>
-          ) : (
-            sandboxPoints.map((placeId, index) => {
-              const place = places.find((p) => p.id === placeId);
-              if (!place) return null;
-
-              return (
-                <div key={placeId} className="sandbox-point-item">
-                  <div className="sandbox-point-info">
-                    <div
-                      className="stop-number"
-                      style={{ background: 'var(--info-glow)', color: 'var(--info)' }}
-                    >
-                      {index + 1}
-                    </div>
-                    <span>{place.name}</span>
-                  </div>
-                  <button
-                    type="button"
-                    className="stop-btn-arrow"
-                    onClick={() => onToggleSandboxPoint(placeId)}
-                    style={{ color: 'var(--danger)' }}
-                    title="Deselect"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        {sandboxPoints.length >= 2 && activeRouteDetails && (
-          <>
-            <div className="stats-summary" style={{ borderColor: 'var(--border-color)' }}>
-              <div className="stat-item">
-                <div className="stat-icon-wrapper" style={{ color: 'var(--info)', background: 'var(--info-glow)' }}>
-                  <Route size={16} />
-                </div>
-                <div>
-                  <div className="stat-label">Sandbox Dist</div>
-                  <div className="stat-value" style={{ color: 'var(--info)' }}>
-                    {activeRouteDetails.distance.toFixed(1)} mi
-                  </div>
-                </div>
+      <div className="sandbox-list">
+        {sandboxPoints.length === 0 ? (
+          <div className="empty-state">
+            <Flask className="empty-icon" size={24} />
+            <p>no points selected</p>
+            <p className="sub">select places below or tap map markers</p>
+          </div>
+        ) : (
+          sandboxPoints.map((placeId, index) => {
+            const place = places.find((p) => p.id === placeId);
+            if (!place) return null;
+            return (
+              <div key={placeId} className="sandbox-row">
+                <span className="sandbox-num-disc">{index + 1}</span>
+                <span className="sandbox-name">{place.name}</span>
+                <button
+                  type="button"
+                  className="icon-btn-sm danger"
+                  onClick={() => onToggleSandboxPoint(placeId)}
+                  title="Remove"
+                >
+                  <X size={12} weight="bold" />
+                </button>
               </div>
-
-              <div className="stat-item">
-                <div className="stat-icon-wrapper" style={{ color: 'var(--info)', background: 'var(--info-glow)' }}>
-                  <Clock size={16} />
-                </div>
-                <div>
-                  <div className="stat-label">Est. Driving</div>
-                  <div className="stat-value">
-                    {activeRouteDetails.duration < 60
-                      ? `${Math.round(activeRouteDetails.duration)} mins`
-                      : `${Math.floor(activeRouteDetails.duration / 60)}h ${Math.round(
-                          activeRouteDetails.duration % 60
-                        )}m`}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <button
-                type="button"
-                className="directions-toggle"
-                onClick={() => setShowDirections(!showDirections)}
-              >
-                <span>
-                  {showDirections ? 'Hide Step-by-Step Directions' : 'Show Step-by-Step Directions'}
-                </span>
-                {showDirections ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </button>
-
-              {showDirections && activeRouteDetails.steps && (
-                <div className="directions-list">
-                  {activeRouteDetails.steps.map((step, idx) => (
-                    <div key={idx} className="direction-step">
-                      <span className="direction-text">{step.instruction}</span>
-                      <span className="direction-meta">
-                        {step.distance.toFixed(2)} mi ({Math.round(step.duration * 2) / 2}m)
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
+            );
+          })
         )}
       </div>
-    </div>
+
+      {hasRoute && (
+        <>
+          <div className="sandbox-stats">
+            <div className="sandbox-stat">
+              <div className="stat-label">distance</div>
+              <div className="stat-value">{activeRouteDetails.distance.toFixed(1)} mi</div>
+            </div>
+            <div className="sandbox-stat">
+              <div className="stat-label">drive time</div>
+              <div className="stat-value">{formatDuration(activeRouteDetails.duration)}</div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="directions-toggle"
+            onClick={() => setShowDirections(!showDirections)}
+          >
+            <span>{showDirections ? 'hide step-by-step directions' : 'show step-by-step directions'}</span>
+            {showDirections ? <CaretUp size={14} weight="bold" /> : <CaretDown size={14} weight="bold" />}
+          </button>
+
+          {showDirections && activeRouteDetails.steps && (
+            <div className="directions-list">
+              {activeRouteDetails.steps.map((step, idx) => (
+                <div key={idx} className="direction-step">
+                  <span className="direction-text">{step.instruction}</span>
+                  <span className="direction-meta">
+                    {step.distance.toFixed(2)} mi ({Math.round(step.duration * 2) / 2}m)
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 
-function SettingsSection({
-  fileInputRef,
-  onExportConfig,
-  onImportClick,
-  onFileChange,
-  className = '',
-}) {
+// ---------- Commute projections ----------
+function CommuteProjectionsSection({ weeklyStats }) {
+  const [projectionMode, setProjectionMode] = useState('workdays');
+  const isWorkdays = projectionMode === 'workdays';
+  const projectionDays = isWorkdays ? WORKDAY_DAYS : DAYS_OF_WEEK;
+  const weekDistance = sumWeeklyStats(weeklyStats, projectionDays, 'distance');
+  const weekDuration = sumWeeklyStats(weeklyStats, projectionDays, 'duration');
+  const count = projectionDays.length;
+  const yearDuration = weekDuration * 52;
+
+  const cards = [
+    {
+      title: 'weekly',
+      sub: `${count} ${isWorkdays ? 'workdays' : 'days'}`,
+      dist: `${weekDistance.toFixed(1)} mi`,
+      dur: formatDuration(weekDuration),
+    },
+    {
+      title: 'monthly',
+      sub: `~${Math.round((count * 52) / 12)} days`,
+      dist: `${((weekDistance * 52) / 12).toFixed(0)} mi`,
+      dur: formatDuration((weekDuration * 52) / 12),
+    },
+    {
+      title: 'yearly',
+      sub: `${count * 52} days`,
+      dist: `${(weekDistance * 52).toLocaleString(undefined, { maximumFractionDigits: 0 })} mi`,
+      dur: formatDuration(yearDuration),
+    },
+  ];
+
+  const entertainment = [
+    {
+      Icon: BookOpenText,
+      color: 'var(--candy-raspberry)',
+      value: Math.floor(yearDuration / 600).toLocaleString(),
+      label: 'audiobooks',
+    },
+    {
+      Icon: MusicNotes,
+      color: 'var(--candy-green)',
+      value: Math.floor(yearDuration / 3.5).toLocaleString(),
+      label: 'songs',
+    },
+    {
+      Icon: MicrophoneStage,
+      color: 'var(--candy-blue)',
+      value: Math.floor(yearDuration / 45).toLocaleString(),
+      label: 'podcasts',
+    },
+  ];
+
   return (
-    <div className={cx('section-card', className)}>
+    <section className="section-card">
       <div className="section-title">
-        <h2>
-          <Settings size={16} style={{ color: 'var(--text-secondary)' }} />
-          Backup & Settings
-        </h2>
+        <ChartLineUp size={19} weight="fill" style={{ color: 'var(--candy-gold)' }} />
+        <h2>commute projections</h2>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-          Save your frequent places and daily commute schedules, or restore them from a backup.
-        </p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '4px' }}>
-          <button
-            type="button"
-            className="button-secondary"
-            onClick={onExportConfig}
-            title="Export configuration as JSON file"
-            style={{ fontSize: '12px', padding: '8px 10px' }}
-          >
-            <Download size={14} />
-            Export
-          </button>
-          <button
-            type="button"
-            className="button-secondary"
-            onClick={onImportClick}
-            title="Import configuration JSON file"
-            style={{ fontSize: '12px', padding: '8px 10px' }}
-          >
-            <Upload size={14} />
-            Import
-          </button>
+      <div className="projection-toggle">
+        <button
+          type="button"
+          className={cx('projection-toggle-btn', isWorkdays && 'active')}
+          onClick={() => setProjectionMode('workdays')}
+        >
+          workdays
+        </button>
+        <button
+          type="button"
+          className={cx('projection-toggle-btn', !isWorkdays && 'active')}
+          onClick={() => setProjectionMode('full-week')}
+        >
+          full week
+        </button>
+      </div>
+      <p className="projection-intro">
+        {isWorkdays
+          ? 'driving across your mon–fri commutes, over ~260 workdays a year.'
+          : 'driving across the full week, weekends included, over 52 weeks.'}
+      </p>
+
+      <div className="projection-cards">
+        {cards.map((c) => (
+          <div className="projection-card" key={c.title}>
+            <div className="projection-card-title">{c.title}</div>
+            <div className="projection-card-subtitle">{c.sub}</div>
+            <div className="projection-card-distance">{c.dist}</div>
+            <div className="projection-card-duration">{c.dur}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="projection-entertainment">
+        <div className="projection-entertainment-title">a year of driving =</div>
+        <div className="projection-ent-grid">
+          {entertainment.map((e) => (
+            <div className="projection-mini-card" key={e.label}>
+              <e.Icon size={18} weight="fill" style={{ color: e.color }} />
+              <div className="projection-mini-value">{e.value}</div>
+              <div className="projection-mini-label">{e.label}</div>
+            </div>
+          ))}
         </div>
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={onFileChange}
-          accept=".json"
-          style={{ display: 'none' }}
-        />
       </div>
-    </div>
+    </section>
+  );
+}
+
+// ---------- Backup ----------
+function SettingsSection({ fileInputRef, onExportConfig, onImportClick, onFileChange }) {
+  return (
+    <section className="section-card">
+      <div className="section-title">
+        <FloppyDisk size={18} weight="fill" style={{ color: 'var(--fg-2)' }} />
+        <h2>backup</h2>
+      </div>
+      <p className="backup-text">save your places &amp; weekly routes to a file, or restore from one.</p>
+      <div className="backup-grid">
+        <button type="button" className="btn-secondary" onClick={onExportConfig}>
+          <DownloadSimple size={15} weight="bold" /> export
+        </button>
+        <button type="button" className="btn-secondary" onClick={onImportClick}>
+          <UploadSimple size={15} weight="bold" /> import
+        </button>
+      </div>
+      <input type="file" ref={fileInputRef} onChange={onFileChange} accept=".json" style={{ display: 'none' }} />
+    </section>
   );
 }
 
@@ -1326,20 +1051,17 @@ export default function Sidebar({
   mobileSheetState = 'peek',
   onMobileSheetStateChange,
   onCycleMobileSheet = () => {},
-  mobileSheetSummary = { title: 'Planner', meta: 'Route controls' },
+  mobileSheetSummary = { title: 'Planner', meta: '' },
 }) {
-  // Add/Edit Place Form State
   const [placeName, setPlaceName] = useState('');
   const [placeAddress, setPlaceAddress] = useState('');
   const [placeType, setPlaceType] = useState('other');
-  const [editingPlaceId, setEditingPlaceId] = useState(null); // stores ID of place being edited
+  const [editingPlaceId, setEditingPlaceId] = useState(null);
   const [isPlaceFormOpen, setIsPlaceFormOpen] = useState(false);
   const placeFormRef = useRef(null);
-
-  // Config Import / Export Refs & Handlers
   const fileInputRef = useRef(null);
 
-  // Drag and Drop State & Handlers
+  // Drag and drop
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
 
@@ -1348,20 +1070,15 @@ export default function Sidebar({
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', index);
   };
-
   const handleDragOver = (e, index) => {
     e.preventDefault();
     if (draggedIndex === null) return;
-    if (dragOverIndex !== index) {
-      setDragOverIndex(index);
-    }
+    if (dragOverIndex !== index) setDragOverIndex(index);
   };
-
   const handleDragEnd = () => {
     setDraggedIndex(null);
     setDragOverIndex(null);
   };
-
   const handleDrop = (e, targetIndex) => {
     e.preventDefault();
     if (draggedIndex !== null && draggedIndex !== targetIndex) {
@@ -1371,41 +1088,22 @@ export default function Sidebar({
     setDragOverIndex(null);
   };
 
-  const handleImportClick = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
+  const handleImportClick = () => fileInputRef.current?.click();
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
         const config = JSON.parse(event.target.result);
-        
-        // Validation
-        if (!config || typeof config !== 'object') {
-          throw new Error('Configuration must be a JSON object.');
-        }
-        if (!config.places || !Array.isArray(config.places)) {
-          throw new Error('Configuration missing a valid "places" array.');
-        }
-        if (!config.schedules || typeof config.schedules !== 'object') {
-          throw new Error('Configuration missing a valid "schedules" object.');
-        }
-
-        // Validate structure inside places
+        if (!config || typeof config !== 'object') throw new Error('Configuration must be a JSON object.');
+        if (!config.places || !Array.isArray(config.places)) throw new Error('Configuration missing a valid "places" array.');
+        if (!config.schedules || typeof config.schedules !== 'object') throw new Error('Configuration missing a valid "schedules" object.');
         const isValidPlaces = config.places.every(
           (p) => p && typeof p === 'object' && p.id && p.name && p.type && typeof p.lat === 'number' && typeof p.lng === 'number'
         );
-        if (!isValidPlaces) {
-          throw new Error('Some places in configuration have invalid/missing properties (name, lat, lng, type, id).');
-        }
-
-        // Call parent handler
+        if (!isValidPlaces) throw new Error('Some places have invalid/missing properties.');
         onImportConfig(config);
         onShowToast('Configuration imported successfully!', 'success');
       } catch (err) {
@@ -1415,43 +1113,29 @@ export default function Sidebar({
     };
     reader.readAsText(file);
   };
-  
-  // Set limit to local to true by default if there is a Home address saved
-  const [limitToLocal, setLimitToLocal] = useState(() => {
-    return places.some((p) => p.type === 'home');
-  });
-  
+
+  const [limitToLocal, setLimitToLocal] = useState(() => places.some((p) => p.type === 'home'));
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchSuggestions, setSearchSuggestions] = useState([]);
   const [selectedCoords, setSelectedCoords] = useState(null);
-
-  // Directions Expand State
   const [showDirections, setShowDirections] = useState(false);
 
-  // Find if Home location exists
   const homePlace = places.find((p) => p.type === 'home');
   const hasHome = !!homePlace;
   const prevHasHomeRef = useRef(hasHome);
 
-  // Auto-manage local limit checkbox when Home location status changes
   useEffect(() => {
-    if (hasHome && !prevHasHomeRef.current) {
-      setLimitToLocal(true);
-    } else if (!hasHome && prevHasHomeRef.current) {
-      setLimitToLocal(false);
-    }
+    if (hasHome && !prevHasHomeRef.current) setLimitToLocal(true);
+    else if (!hasHome && prevHasHomeRef.current) setLimitToLocal(false);
     prevHasHomeRef.current = hasHome;
   }, [hasHome]);
 
-  // Calculate 50-mile bounds if enabled and Home exists
   const getBounds = () => {
     if (!limitToLocal || !homePlace) return null;
     const lat = homePlace.lat;
     const lng = homePlace.lng;
-    
     const latDelta = 50 / 69.0;
     const lngDelta = 50 / (69.0 * Math.cos((lat * Math.PI) / 180));
-
     return {
       minLng: lng - lngDelta,
       maxLat: lat + latDelta,
@@ -1460,18 +1144,14 @@ export default function Sidebar({
     };
   };
 
-  // Debounced Address Typeahead Lookup
+  // Debounced typeahead
   useEffect(() => {
     if (placeAddress.trim().length < 4 || selectedCoords) {
-      // Clear stale suggestions immediately when the query is too short or a result
-      // was picked. This is intentional reset logic for an async effect, not derived
-      // state, so the set-state-in-effect rule is suppressed here.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSearchSuggestions([]);
       return;
     }
-
-    const delayDebounceFn = setTimeout(async () => {
+    const delay = setTimeout(async () => {
       setSearchLoading(true);
       try {
         const results = await geocodeAddress(placeAddress, true, getBounds());
@@ -1482,96 +1162,65 @@ export default function Sidebar({
         setSearchLoading(false);
       }
     }, 600);
-
-    return () => clearTimeout(delayDebounceFn);
-    // getBounds is derived from limitToLocal/places, which are already dependencies.
+    return () => clearTimeout(delay);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placeAddress, selectedCoords, limitToLocal, places]);
 
-    // formatTime helper deleted (moved to module level)
-
-  // Google Maps directions launch
   const handleSendToGoogleMaps = () => {
     if (activeDaySchedule.length < 2) return;
-
-    const coords = activeDaySchedule
-      .map((stop) => places.find((p) => p.id === stop.placeId))
-      .filter(Boolean);
-
+    const coords = activeDaySchedule.map((stop) => places.find((p) => p.id === stop.placeId)).filter(Boolean);
     if (coords.length < 2) return;
-
     const origin = `${coords[0].lat},${coords[0].lng}`;
     const destination = `${coords[coords.length - 1].lat},${coords[coords.length - 1].lng}`;
-
-    const waypoints = coords
-      .slice(1, -1)
-      .map((c) => `${c.lat},${c.lng}`)
-      .join('%7C');
-
+    const waypoints = coords.slice(1, -1).map((c) => `${c.lat},${c.lng}`).join('%7C');
     const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}&travelmode=driving`;
-
     window.open(url, '_blank');
-    onShowToast('Opening route directions in Google Maps!', 'success');
+    onShowToast('Opening route in Google Maps!', 'success');
   };
 
-  // Copy textual itinerary summary to clipboard
   const handleCopySummary = () => {
     if (activeDaySchedule.length === 0) return;
-
-    let text = `Routeen Route - ${activeDay.toUpperCase()}\n`;
+    let text = `Routeen Route - ${getDayLabel(activeDay)}\n`;
     text += `Start Time: ${startTime || '08:00'}\n`;
     if (activeRouteDetails) {
       text += `Total Distance: ${activeRouteDetails.distance.toFixed(1)} miles\n`;
       text += `Estimated Driving Time: ${Math.round(activeRouteDetails.duration)} mins\n`;
     }
     text += `-------------------------------------------\n`;
-
     timeline.forEach((item, index) => {
       const timeInfo = item.isFirst
         ? `Depart: ${formatTime(item.departureMinutes)}`
         : item.isLast
-        ? `Arrive: ${formatTime(item.arrivalMinutes)}`
-        : `Arrive: ${formatTime(item.arrivalMinutes)} | Depart: ${formatTime(item.departureMinutes)}`;
-
+          ? `Arrive: ${formatTime(item.arrivalMinutes)}`
+          : `Arrive: ${formatTime(item.arrivalMinutes)} | Depart: ${formatTime(item.departureMinutes)}`;
       text += `${index + 1}. ${item.placeName} (${timeInfo})\n`;
       const fullPlace = places.find((p) => p.name === item.placeName);
-      if (fullPlace) {
-        text += `   Address: ${fullPlace.address}\n`;
-      }
-
+      if (fullPlace) text += `   Address: ${fullPlace.address}\n`;
       if (item.stayDuration > 0 && !item.isLast) {
         const hours = item.stayDuration / 60;
         text += `   Stay duration: ${hours} ${hours === 1 ? 'hour' : 'hours'}\n`;
       }
-
       if (!item.isLast && item.driveToNextMinutes > 0) {
-        text += `   🚗 Drive to next: ${Math.round(item.driveToNextMinutes)} mins (${item.driveToNextMiles.toFixed(1)} miles)\n`;
+        text += `   Drive to next: ${Math.round(item.driveToNextMinutes)} mins (${item.driveToNextMiles.toFixed(1)} miles)\n`;
       }
     });
-
     navigator.clipboard.writeText(text);
     onShowToast('Itinerary copied to clipboard!', 'success');
   };
 
-  // Address Geocoding Search (manual button click)
   const handleAddressSearch = async (e) => {
-    e.preventDefault();
+    if (e?.preventDefault) e.preventDefault();
     if (!placeAddress.trim()) {
       onShowToast('Please enter an address to search', 'error');
       return;
     }
-
     setSearchLoading(true);
     setSearchSuggestions([]);
     setSelectedCoords(null);
-
     try {
       const results = await geocodeAddress(placeAddress, true, getBounds());
-      if (results.length === 0) {
-        onShowToast('No locations found for this address', 'error');
-      } else {
-        setSearchSuggestions(results);
-      }
+      if (results.length === 0) onShowToast('No locations found for this address', 'error');
+      else setSearchSuggestions(results);
     } catch {
       onShowToast('Error searching address. Try again.', 'error');
     } finally {
@@ -1579,34 +1228,23 @@ export default function Sidebar({
     }
   };
 
-  // Select a suggestion
   const handleSelectSuggestion = (suggestion) => {
     setPlaceAddress(suggestion.address);
     setSelectedCoords({ lat: suggestion.lat, lng: suggestion.lng });
     setSearchSuggestions([]);
-
     if (!placeName.trim()) {
       let suggestedName = suggestion.name;
-
       if (!suggestedName) {
         const parts = suggestion.address.split(',');
         const firstPart = parts[0]?.trim();
         const secondPart = parts[1]?.trim();
-
         const isHouseNumber = /^\d+[a-zA-Z]?$/.test(firstPart);
-
-        if (isHouseNumber && secondPart) {
-          suggestedName = `${firstPart} ${secondPart}`;
-        } else {
-          suggestedName = firstPart || 'Custom Place';
-        }
+        suggestedName = isHouseNumber && secondPart ? `${firstPart} ${secondPart}` : firstPart || 'Custom Place';
       }
-
       setPlaceName(suggestedName);
     }
   };
 
-  // Populate form for editing a place
   const handleStartEdit = (place) => {
     setEditingPlaceId(place.id);
     setPlaceName(place.name);
@@ -1615,14 +1253,12 @@ export default function Sidebar({
     setSelectedCoords({ lat: place.lat, lng: place.lng });
     setSearchSuggestions([]);
     setIsPlaceFormOpen(true);
-
     window.requestAnimationFrame(() => {
       placeFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
     onShowToast(`Editing "${place.name}"`, 'info');
   };
 
-  // Reset form states
   const handleCancelEdit = () => {
     setEditingPlaceId(null);
     setPlaceName('');
@@ -1647,16 +1283,13 @@ export default function Sidebar({
     onMobileSheetStateChange?.('half');
   };
 
-  // Add or Edit Place Submit
   const handleAddPlaceSubmit = async (e) => {
     e.preventDefault();
     if (!placeName.trim() || !placeAddress.trim()) {
       onShowToast('Please enter both name and address', 'error');
       return;
     }
-
     let lat, lng;
-
     if (selectedCoords) {
       lat = selectedCoords.lat;
       lng = selectedCoords.lng;
@@ -1665,7 +1298,7 @@ export default function Sidebar({
       try {
         const results = await geocodeAddress(placeAddress, true, getBounds());
         if (results.length === 0) {
-          onShowToast('Address not found. Please select from autocomplete or verify address.', 'error');
+          onShowToast('Address not found. Select from autocomplete or verify address.', 'error');
           setSearchLoading(false);
           return;
         }
@@ -1682,13 +1315,7 @@ export default function Sidebar({
     }
 
     if (editingPlaceId) {
-      onUpdatePlace(editingPlaceId, {
-        name: placeName,
-        type: placeType,
-        address: placeAddress,
-        lat,
-        lng,
-      });
+      onUpdatePlace(editingPlaceId, { name: placeName, type: placeType, address: placeAddress, lat, lng });
       handleCancelEdit();
     } else {
       if (placeType === 'home' && places.some((p) => p.type === 'home')) {
@@ -1697,15 +1324,8 @@ export default function Sidebar({
       if (placeType === 'office' && places.some((p) => p.type === 'office')) {
         onShowToast('Note: You already have an Office location saved.', 'info');
       }
-
-      onAddPlace({
-        name: placeName,
-        type: placeType,
-        address: placeAddress,
-        lat,
-        lng,
-      });
-
+      onAddPlace({ name: placeName, type: placeType, address: placeAddress, lat, lng });
+      if (e?.nativeEvent?.submitter) sparkFromEvent({ currentTarget: e.nativeEvent.submitter });
       setPlaceName('');
       setPlaceAddress('');
       setPlaceType('other');
@@ -1716,24 +1336,17 @@ export default function Sidebar({
   };
 
   return (
-    <div className={cx('sidebar', `mobile-sheet-${mobileSheetState || 'peek'}`)}>
+    <aside className={cx('sidebar', `mobile-sheet-${mobileSheetState || 'peek'}`)}>
       <MobileSheetHandle
         state={mobileSheetState || 'peek'}
         summary={mobileSheetSummary}
         onCycle={onCycleMobileSheet}
       />
 
-      <SidebarHeader
-        theme={theme}
-        onToggleTheme={onToggleTheme}
-        onOpenDashboard={onOpenDashboard}
-      />
+      <SidebarHeader theme={theme} onToggleTheme={onToggleTheme} onOpenDashboard={onOpenDashboard} />
 
-      <div className="sidebar-scrollable">
-        <ModeSwitch
-          activeMode={activeMode}
-          onModeChange={handleModeChange}
-        />
+      <div className="sidebar-scrollable rt-scroll">
+        <ModeSwitch activeMode={activeMode} onModeChange={handleModeChange} />
 
         {activeMode === 'schedule' ? (
           <WeeklyPlannerSection
@@ -1746,7 +1359,6 @@ export default function Sidebar({
             schedules={schedules}
             onOptimizeRoute={onOptimizeRoute}
             timeline={timeline}
-            hasHome={hasHome}
             activeRouteDetails={activeRouteDetails}
             showDirections={showDirections}
             setShowDirections={setShowDirections}
@@ -1812,9 +1424,7 @@ export default function Sidebar({
           onLimitToLocalChange={setLimitToLocal}
         />
 
-        {activeMode === 'schedule' && (
-          <CommuteProjectionsSection weeklyStats={weeklyStats} />
-        )}
+        {activeMode === 'schedule' && <CommuteProjectionsSection weeklyStats={weeklyStats} />}
 
         <SettingsSection
           fileInputRef={fileInputRef}
@@ -1823,6 +1433,6 @@ export default function Sidebar({
           onFileChange={handleFileChange}
         />
       </div>
-    </div>
+    </aside>
   );
 }

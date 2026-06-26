@@ -1,4 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
+import {
+  CheckCircle,
+  WarningCircle,
+  Info,
+  Sun,
+  Moon,
+  ChartBar,
+} from '@phosphor-icons/react';
 import Sidebar from './components/Sidebar';
 import MapContainer from './components/MapContainer';
 import DashboardModal from './components/DashboardModal';
@@ -84,20 +92,15 @@ function permute(arr) {
 }
 
 export default function App() {
-  // Theme State
+  // Theme State (candy brand is light-first)
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('cw_theme');
-    return saved ? saved : 'dark';
+    return saved ? saved : 'light';
   });
 
-  // Apply theme class to documentRoot
+  // Apply the candy theme via data-rt-theme on the document root.
   useEffect(() => {
-    const root = document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
+    document.documentElement.setAttribute('data-rt-theme', theme);
     localStorage.setItem('cw_theme', theme);
   }, [theme]);
 
@@ -748,15 +751,43 @@ export default function App() {
     };
   })();
 
+  // Candy HUD (top-left map card) values
+  const isScheduleMode = activeMode === 'schedule';
+  const hudHasRoute =
+    !!routeDetails &&
+    ((isScheduleMode && timeline.length >= 2) ||
+      (!isScheduleMode && sandboxPoints.length >= 2));
+  const hudTitle = isScheduleMode
+    ? `${getDayLabel(activeDay)} route`
+    : 'sandbox route';
+  const hudDistance = hudHasRoute ? routeDetails.distance.toFixed(1) : '0.0';
+  const hudDuration = hudHasRoute ? formatRouteDuration(routeDetails.duration) : '--';
+  const hudStops = isScheduleMode
+    ? (schedules[activeDay] || []).length
+    : sandboxPoints.length;
+  let hudDayLength = '--';
+  if (isScheduleMode && timeline.length >= 2) {
+    const total =
+      timeline[timeline.length - 1].arrivalMinutes - timeline[0].departureMinutes;
+    if (Number.isFinite(total)) hudDayLength = formatRouteDuration(total) || '0 min';
+  }
+  const themeIcon =
+    theme === 'dark' ? <Sun size={16} weight="fill" /> : <Moon size={16} weight="fill" />;
+  const handleToggleTheme = () => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+
   return (
     <div className={`dashboard-container mobile-sheet-${mobileSheetState}`}>
       {/* Toast Notification */}
       {toast.visible && (
         <div className="toast-container">
           <div className={`toast ${toast.type}`}>
-            <span style={{ fontSize: '15px' }}>
-              {toast.type === 'success' ? '✅' : toast.type === 'error' ? '❌' : 'ℹ️'}
-            </span>
+            {toast.type === 'success' ? (
+              <CheckCircle size={17} weight="fill" />
+            ) : toast.type === 'error' ? (
+              <WarningCircle size={17} weight="fill" />
+            ) : (
+              <Info size={17} weight="fill" />
+            )}
             {toast.message}
           </div>
         </div>
@@ -790,7 +821,7 @@ export default function App() {
         activeRouteDetails={routeDetails}
         timeline={timeline}
         theme={theme}
-        onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
+        onToggleTheme={handleToggleTheme}
         onExportConfig={handleExportConfig}
         onImportConfig={handleImportConfig}
         onShowToast={showToast}
@@ -814,58 +845,37 @@ export default function App() {
         onToggleSandboxPoint={handleToggleSandboxPoint}
         onAddStopToActiveDay={handleAddStopToActiveDay}
         theme={theme}
+        hud={{
+          title: hudTitle,
+          distance: hudDistance,
+          duration: hudDuration,
+          dayLength: hudDayLength,
+          stops: hudStops,
+        }}
       />
 
-      {/* Dynamic Floating HUD Cards */}
-      <div className="map-overlay">
-        {activeMode === 'schedule' && timeline.length >= 2 && routeDetails && (
-          <div className="map-card-widget">
-            <h3>{activeDay.toUpperCase()} STATS</h3>
-            <div className="main-value">{routeDetails.distance.toFixed(1)} miles</div>
-            <div className="sub-value">
-              ⏱️ Est. Driving:{' '}
-              {routeDetails.duration < 60
-                ? `${Math.round(routeDetails.duration)} mins`
-                : `${Math.floor(routeDetails.duration / 60)}h ${Math.round(
-                    routeDetails.duration % 60
-                  )}m`}
-            </div>
-            {timeline.length > 0 && (
-              <div className="sub-value" style={{ borderTop: '1px solid var(--border-color)', marginTop: 4, paddingTop: 4 }}>
-                🏠 Day Duration:{' '}
-                {(() => {
-                  const first = timeline[0];
-                  const last = timeline[timeline.length - 1];
-                  const totalMinutes = last.arrivalMinutes - first.departureMinutes;
-                  if (isNaN(totalMinutes)) return '--';
-                  const hrs = Math.floor(totalMinutes / 60);
-                  const mins = Math.round(totalMinutes % 60);
-                  return hrs > 0 ? `${hrs}h ${mins}m` : `${mins} mins`;
-                })()}
-              </div>
-            )}
-            <div className="sub-value">📍 Stops: {schedules[activeDay].length}</div>
-          </div>
-        )}
-
-        {activeMode === 'sandbox' && sandboxPoints.length >= 2 && routeDetails && (
-          <div className="map-card-widget" style={{ borderLeft: '4px solid var(--info)' }}>
-            <h3 style={{ color: 'var(--info)' }}>SANDBOX ROUTE</h3>
-            <div className="main-value" style={{ color: 'var(--info)' }}>
-              {routeDetails.distance.toFixed(1)} miles
-            </div>
-            <div className="sub-value">
-              ⏱️ Est. Driving:{' '}
-              {routeDetails.duration < 60
-                ? `${Math.round(routeDetails.duration)} mins`
-                : `${Math.floor(routeDetails.duration / 60)}h ${Math.round(
-                    routeDetails.duration % 60
-                  )}m`}
-            </div>
-            <div className="sub-value">📍 Points Selected: {sandboxPoints.length}</div>
-          </div>
-        )}
+      {/* Mobile floating cyan top bar */}
+      <div className="rt-topbar">
+        <span className="jb-mark jb-mark--sm" style={{ width: 30, height: 30 }} />
+        <span className="rt-topbar-name">routeen</span>
+        <button
+          type="button"
+          className="header-round-btn"
+          onClick={handleToggleTheme}
+          title="Toggle light / dark"
+        >
+          {themeIcon}
+        </button>
+        <button
+          type="button"
+          className="header-round-btn"
+          onClick={() => setShowDashboard(true)}
+          title="Weekly insights"
+        >
+          <ChartBar size={16} weight="bold" />
+        </button>
       </div>
+
 
       {/* Analytics Insights Dashboard Modal */}
       <DashboardModal
